@@ -73,7 +73,7 @@ export default function VerificationScreen() {
 
         <Text onPress={onResend} style={styles.didnt}>Didn’t got the code?</Text>
 
-        <PrimaryButton title="Re-Send" onPress={onVerify} loading={loading} />
+        <PrimaryButton title="Verify" onPress={onVerify} loading={loading} />
       </View>
     </AppBackground>
   );
