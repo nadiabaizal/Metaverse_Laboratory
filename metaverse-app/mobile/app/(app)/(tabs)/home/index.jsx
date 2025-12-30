@@ -160,7 +160,7 @@ export default function HomeScreen() {
             </View>
           </Pressable>
 
-          <Pressable onPress={() => alert("Notifikasi (todo)")} style={styles.notifBtn} hitSlop={10}>
+          <Pressable onPress={() => router.push("/(app)/notification")} style={styles.notifBtn} hitSlop={10}>
             <Ionicons name="notifications-outline" size={26} color="#111827" />
           </Pressable>
         </View>
