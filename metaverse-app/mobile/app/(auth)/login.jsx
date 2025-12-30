@@ -29,36 +29,31 @@ export default function LoginScreen() {
   const password = watch("password");
 
   const onSubmit = async (data) => {
-    setLoading(true);
-    try {
-      const res = await api.post("/auth/login", data);
-      setAuthToken(res.data.token);
+  setLoading(true);
+  try {
+    const res = await api.post("/auth/login", data);
+    setAuthToken(res.data.token);
 
-      // kalau user belum complete profile -> arahkan ke profile
-      if (!res.data.user?.profileCompleted) {
-        router.replace("/(app)/profile");
-      } else {
-        // next: router.replace("/(app)/home") kalau sudah ada
-        router.replace("/(app)/profile");
-      }
-    } catch (e) {
-        const msg =
-            e?.response?.data?.message ||
-            e?.response?.data?.error ||
-            e?.message ||
-            "Login gagal";
+    // ✅ sesuai alur: setelah login langsung ke Home
+    router.replace("/(app)/(tabs)/home");
+  } catch (e) {
+    const msg =
+      e?.response?.data?.message ||
+      e?.response?.data?.error ||
+      e?.message ||
+      "Login gagal";
 
-        console.log("LOGIN ERROR:", {
-            message: e?.message,
-            status: e?.response?.status,
-            data: e?.response?.data,
-        });
+    console.log("LOGIN ERROR:", {
+      message: e?.message,
+      status: e?.response?.status,
+      data: e?.response?.data,
+    });
 
-        alert(msg);
-        }finally {
-      setLoading(false);
-    }
-  };
+    alert(msg);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
   <AppBackground>

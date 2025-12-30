@@ -12,7 +12,7 @@ import { colors } from "../../src/theme/colors";
 import { spacing } from "../../src/theme/spacing";
 import { type } from "../../src/theme/typography";
 import { profileSchema } from "../../src/lib/validators";
-import { api } from "../../src/lib/api";
+import { api, setAuthToken } from "../../src/lib/api";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -29,18 +29,21 @@ export default function ProfileScreen() {
   const address = watch("address");
 
   const onSubmit = async (data) => {
-    setLoading(true);
-    try {
-      await api.post("/me/profile", data);
-      alert("Profile saved!");
-      // next: router.replace("/(app)/home")
-      router.back();
-    } catch (e) {
-      alert(e?.response?.data?.message || "Gagal simpan profile");
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    await api.post("/me/profile", data);
+    alert("Profile saved!");
+
+    // ✅ setelah register selesai, user HARUS login ulang
+    setAuthToken(null);
+    router.replace("/(auth)/login");
+  } catch (e) {
+    alert(e?.response?.data?.message || "Gagal simpan profile");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <AppBackground>
@@ -87,7 +90,13 @@ export default function ProfileScreen() {
         <Text style={styles.max}>Max 100 characters</Text>
 
         <View style={styles.actions}>
-          <Pressable onPress={() => router.back()} style={styles.skipBtn}>
+          <Pressable
+            onPress={() => {
+              setAuthToken(null);
+              router.replace("/(auth)/login");
+            }}
+            style={styles.skipBtn}
+          >
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
