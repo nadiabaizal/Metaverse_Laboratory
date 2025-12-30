@@ -62,7 +62,7 @@ export default function EventScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
           <Ionicons name="chevron-back" size={26} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pilih Klinik</Text>
+        <Text style={styles.headerTitle}>Event</Text>
         <View style={{ width: 40 }} />
       </View>
 

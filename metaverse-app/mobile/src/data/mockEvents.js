@@ -13,6 +13,18 @@ export const MOCK_EVENTS = [
       "Personal laptop",
       "Basic knowledge of programming or game engines (recommended)",
     ],
+    speakers: [
+      {
+        id: "bima",
+        name: "Ir. Bima Satya, M.T.",
+        role: "VR Developer, Metaverse Lab ITB",
+      },
+      {
+        id: "kevin",
+        name: "Kevin Aditya",
+        role: "Game & XR Engineer",
+      },
+    ],
     images: [
       "https://images.unsplash.com/photo-1617802690992-15d93263d3a9?auto=format&fit=crop&w=1600&q=80",
       "https://images.unsplash.com/photo-1622979135225-d2ba269cf1ac?auto=format&fit=crop&w=1600&q=80",
@@ -30,6 +42,13 @@ export const MOCK_EVENTS = [
     description:
       "Hands-on session to learn VR development fundamentals and best practices. You'll build a simple VR interaction and test it directly on a headset.",
     requirements: ["Personal laptop", "Bring your own charger"],
+    speakers: [
+      {
+        id: "mentor-1",
+        name: "Metaverse Lab Team",
+        role: "Facilitator",
+      },
+    ],
     images: [
       "https://images.unsplash.com/photo-1593508512255-86ab42a8e620?auto=format&fit=crop&w=1600&q=80",
       "https://images.unsplash.com/photo-1617802690992-15d93263d3a9?auto=format&fit=crop&w=1600&q=80",

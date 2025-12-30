@@ -2,7 +2,6 @@ import React, { useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, ScrollView, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
 import { getEventById } from "../../../../src/data/mockEvents";
 
@@ -83,24 +82,15 @@ export default function EventDetailsScreen() {
 
           <SectionTitle icon="information-circle-outline" title="Information" />
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Location</Text>
-            <Text style={styles.infoValue}>{event.location}</Text>
-
-            <View style={{ height: 14 }} />
-
-            <Text style={styles.infoLabel}>Date</Text>
-            <Text style={styles.infoValue}>{event.dateLabel}</Text>
-
-            <View style={{ height: 14 }} />
-
-            <Text style={styles.infoLabel}>Time</Text>
-            <Text style={styles.infoValue}>{event.timeLabel}</Text>
-
-            <View style={{ height: 14 }} />
-
-            <Text style={styles.infoLabel}>Seats left</Text>
-            <Text style={styles.infoValue}>{event.seatsLeft}</Text>
+            <Text style={styles.infoTitle}>Location</Text>
+            <Text style={styles.infoSub}>{event.location}</Text>
           </View>
+
+          <View style={{ height: 14 }} />
+
+          {(event.speakers || []).map((sp) => (
+            <SpeakerCard key={sp.id} name={sp.name} role={sp.role} />
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -112,6 +102,25 @@ function SectionTitle({ icon, title }) {
     <View style={styles.sectionRow}>
       <Ionicons name={icon} size={28} color="#111827" />
       <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function SpeakerCard({ name, role }) {
+  return (
+    <View style={styles.speakerCard}>
+      <View style={styles.speakerIconBox}>
+        <Ionicons name="mic-outline" size={22} color="#2563EB" />
+        <View style={styles.speakerDot} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.speakerName} numberOfLines={1}>
+          {name}
+        </Text>
+        <Text style={styles.speakerRole} numberOfLines={1}>
+          {role}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -173,6 +182,39 @@ const styles = StyleSheet.create({
     padding: spacing.l,
     backgroundColor: "#FFFFFF",
   },
-  infoLabel: { fontSize: 14, fontWeight: "900", color: "#94A3B8", letterSpacing: 0.6, textTransform: "uppercase" },
-  infoValue: { marginTop: 4, fontSize: 18, fontWeight: "800", color: "#0F172A" },
+
+  infoTitle: { fontSize: 16, fontWeight: "900", color: "#111827" },
+  infoSub: { marginTop: 8, fontSize: 14, fontWeight: "700", color: "#9CA3AF" },
+
+  speakerCard: {
+    marginTop: 14,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  speakerIconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 12,
+    backgroundColor: "#E0F2FE",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  speakerDot: {
+    position: "absolute",
+    right: 10,
+    bottom: 12,
+    width: 8,
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+  },
+  speakerName: { fontSize: 16, fontWeight: "900", color: "#111827" },
+  speakerRole: { marginTop: 4, fontSize: 13, fontWeight: "700", color: "#9CA3AF" },
 });

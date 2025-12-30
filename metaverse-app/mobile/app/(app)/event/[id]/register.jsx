@@ -1,62 +1,154 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { spacing } from "../../../../src/theme/spacing";
+import { colors } from "../../../../src/theme/colors";
 import { getEventById } from "../../../../src/data/mockEvents";
 
 export default function EventRegisterScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const eventId = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "unity-vr";
+  const eventId = typeof params.id === "string" ? params.id : String(params.id ?? "1");
   const event = useMemo(() => getEventById(eventId), [eventId]);
 
   const [attending, setAttending] = useState(true);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [guestCount, setGuestCount] = useState("");
+  const [guests, setGuests] = useState("");
+  const [touchedSubmit, setTouchedSubmit] = useState(false);
 
-  const submit = () => {
-    // UI only: assume success
-    router.replace({ pathname: "/(app)/event/[id]/success", params: { id: event.id } });
+  const isFormComplete =
+    name.trim().length > 0 &&
+    email.trim().length > 0 &&
+    phone.trim().length > 0 &&
+    guests.trim().length > 0;
+
+  const isEmailValid = /.+@.+\..+/.test(email.trim());
+  const isGuestsValid = /^\d+$/.test(guests.trim());
+  const isFormValid = isFormComplete && isEmailValid && isGuestsValid;
+
+  const onSubmit = () => {
+    setTouchedSubmit(true);
+    if (!isFormValid) return;
+    router.push(`/(app)/event/${eventId}/success`);
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color="#111827" />
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Text style={styles.backText}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Event Register</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 44 }} />
       </View>
 
+      {/* progress bar */}
       <View style={styles.progressRow}>
         <View style={[styles.progressLine, styles.progressActive]} />
         <View style={styles.progressLine} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: spacing.l, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
-          <Text style={styles.question} numberOfLines={1}>
-            Would you be attending the ... event?
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+      >
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.question} numberOfLines={2} ellipsizeMode="tail">
+            Would you be attending the {event?.title || "..."} event?
           </Text>
 
-          <View style={styles.radioRow}>
-            <Radio label="Yes" active={attending} onPress={() => setAttending(true)} />
-            <Radio label="No" active={!attending} onPress={() => setAttending(false)} />
+          <View style={styles.choiceRow}>
+            <TouchableOpacity style={styles.choice} onPress={() => setAttending(true)} activeOpacity={0.85}>
+              <View style={[styles.radioOuter, attending && styles.radioOuterActive]}>
+                {attending ? <View style={styles.radioInner} /> : null}
+              </View>
+              <Text style={[styles.choiceLabel, attending && styles.choiceLabelActive]}>Yes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.choice} onPress={() => setAttending(false)} activeOpacity={0.85}>
+              <View style={[styles.radioOuter, !attending && styles.radioOuterActive]}>
+                {!attending ? <View style={styles.radioInner} /> : null}
+              </View>
+              <Text style={[styles.choiceLabel, !attending && styles.choiceLabelActive]}>No</Text>
+            </TouchableOpacity>
           </View>
 
-          <Field label="Name" value={name} onChangeText={setName} placeholder="John Doe" />
-          <Field label="Email" value={email} onChangeText={setEmail} placeholder="*****@mahasiswa.itb.ac.id" keyboardType="email-address" />
-          <Field label="Phone Number" value={phone} onChangeText={setPhone} placeholder="e.g. 0812345678" keyboardType="phone-pad" />
-          <Field label="How many guest are you bringing?" value={guestCount} onChangeText={setGuestCount} placeholder="e.g. 2" keyboardType="number-pad" />
+          <View style={styles.field}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="John Doe"
+              placeholderTextColor="#9CA3AF"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="*****@mahasiswa.itb.ac.id"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="e.g. 0812345678"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>How many guest are you bringing?</Text>
+            <TextInput
+              value={guests}
+              onChangeText={setGuests}
+              placeholder="e.g. 2"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="number-pad"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={{ height: 96 }} />
         </ScrollView>
 
-        <View style={styles.bottomBar}>
-          <TouchableOpacity style={styles.submitBtn} onPress={submit} activeOpacity={0.9}>
-            <Text style={styles.submitText}>Register</Text>
+        <View style={styles.footer}>
+          {!isFormValid && touchedSubmit ? (
+            <Text style={styles.errorText}>Please complete all fields correctly before submitting.</Text>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, !isFormValid && styles.primaryBtnDisabled]}
+            onPress={onSubmit}
+            activeOpacity={0.9}
+            disabled={!isFormValid}
+          >
+            <Text style={styles.primaryText}>Register</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -64,95 +156,111 @@ export default function EventRegisterScreen() {
   );
 }
 
-function Radio({ label, active, onPress }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={styles.radioItem} activeOpacity={0.85}>
-      <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
-        {active ? <View style={styles.radioInner} /> : null}
-      </View>
-      <Text style={[styles.radioLabel, active && styles.radioLabelActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function Field({ label, value, onChangeText, placeholder, keyboardType }) {
-  return (
-    <View style={{ marginTop: 22 }}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
-        keyboardType={keyboardType}
-        style={styles.input}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFFFFF" },
+  safe: { flex: 1, backgroundColor: "white" },
 
   header: {
-    paddingTop: spacing.m,
-    paddingHorizontal: spacing.l,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    // spacing.js uses: s, m, l, xl, xxl
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.l,
+    paddingBottom: spacing.s,
   },
-  backBtn: { width: 40, height: 40, alignItems: "flex-start", justifyContent: "center" },
-  headerTitle: { fontSize: 34, fontWeight: "900", color: "#111827" },
+  backBtn: { width: 44, height: 44, alignItems: "flex-start", justifyContent: "center" },
+  backText: { fontSize: 28, color: "#111827", lineHeight: 28 },
+  headerTitle: { fontSize: 28, fontWeight: "700", color: "#111827" },
 
-  progressRow: { flexDirection: "row", gap: 18, paddingHorizontal: spacing.l, marginTop: 12 },
-  progressLine: { flex: 1, height: 3, borderRadius: 999, backgroundColor: "#D1D5DB" },
-  progressActive: { backgroundColor: "#9C86FF" },
+  progressRow: {
+    flexDirection: "row",
+    gap: spacing.l,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.l,
+  },
+  progressLine: {
+    flex: 1,
+    height: 3,
+    borderRadius: 99,
+    backgroundColor: "#D1D5DB",
+  },
+  progressActive: {
+    backgroundColor: "#9B8CFF",
+  },
 
-  question: { marginTop: 24, fontSize: 16, fontWeight: "700", color: "#111827" },
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.l,
+  },
+  question: {
+    fontSize: 16,
+    color: "#111827",
+    marginBottom: spacing.xl,
+  },
 
-  radioRow: { marginTop: 18, flexDirection: "row", justifyContent: "center", gap: 70 },
-  radioItem: { alignItems: "center", gap: 8 },
+  choiceRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 56,
+    marginBottom: spacing.xl,
+  },
+  choice: { alignItems: "center", gap: 8 },
   radioOuter: {
-    width: 26,
-    height: 26,
-    borderRadius: 26,
+    width: 20,
+    height: 20,
+    borderRadius: 999,
     borderWidth: 2,
-    borderColor: "#111827",
+    borderColor: "#6B7280",
     alignItems: "center",
     justifyContent: "center",
   },
-  radioOuterActive: { borderColor: "#2D2A7B" },
-  radioInner: { width: 14, height: 14, borderRadius: 14, backgroundColor: "#2D2A7B" },
-  radioLabel: { fontSize: 16, fontWeight: "900", color: "#111827" },
-  radioLabelActive: { color: "#2D2A7B" },
+  radioOuterActive: {
+    borderColor: colors.primary ?? "#2E2A78",
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: colors.primary ?? "#2E2A78",
+  },
+  choiceLabel: { fontSize: 14, color: "#111827" },
+  choiceLabelActive: { color: colors.primary ?? "#2E2A78", fontWeight: "600" },
 
-  fieldLabel: { fontSize: 16, fontWeight: "700", color: "#111827", marginBottom: 10 },
+  field: { marginBottom: spacing.xl },
+  label: { fontSize: 16, color: "#111827", marginBottom: spacing.m },
   input: {
-    height: 58,
-    borderRadius: 8,
-    borderWidth: 2,
+    height: 56,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: "#9CA3AF",
     paddingHorizontal: 16,
     fontSize: 18,
     color: "#111827",
   },
 
-  bottomBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: spacing.l,
+  footer: {
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xl,
     paddingTop: spacing.m,
-    backgroundColor: "rgba(255,255,255,0.96)",
+    backgroundColor: "white",
   },
-  submitBtn: {
-    height: 74,
-    borderRadius: 20,
-    backgroundColor: "#2D2A7B",
+  primaryBtn: {
+    height: 72,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.primary ?? "#2E2A78",
   },
-  submitText: { fontSize: 30, fontWeight: "900", color: "#FFFFFF" },
+  primaryBtnDisabled: {
+    backgroundColor: "#9CA3AF",
+  },
+  primaryText: { color: "white", fontSize: 28, fontWeight: "800" },
+
+  errorText: {
+    color: "#EF4444",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 10,
+    textAlign: "center",
+  },
 });
