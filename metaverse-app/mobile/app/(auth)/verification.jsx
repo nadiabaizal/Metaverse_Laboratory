@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-
 import AppBackground from "../../src/components/AppBackground";
 import OTPInput from "../../src/components/OTPInput";
 import PrimaryButton from "../../src/components/PrimaryButton";

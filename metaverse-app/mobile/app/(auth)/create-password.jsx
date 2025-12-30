@@ -35,7 +35,7 @@ export default function CreatePasswordScreen() {
         password: data.password,
       });
       setAuthToken(res.data.token);
-      router.replace("/(app)/profile");
+      router.replace("/(auth)/data");
     } catch (e) {
       alert(e?.response?.data?.message || "Gagal set password");
     } finally {
