@@ -1,46 +1,79 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "../src/lib/supabase";
 import { colors } from "../src/theme/colors";
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const checkedRef = useRef(false); // ⛔ cegah looping redirect
 
   useEffect(() => {
-  const checkAuth = async () => {
-    const { data } = await supabase.auth.getSession();
-    const session = data.session;
+    const checkAuth = async () => {
+      if (checkedRef.current) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
+      const currentRoute = segments.join("/");
 
-    if (!session && !inAuthGroup) {
-      router.replace("/(auth)/login");
-      return;
-    }
+      // ✅ route yang BOLEH TANPA SESSION
+      const allowWithoutSession = [
+        "(auth)/login",
+        "(auth)/register",
+        "(auth)/verification",
+        "(auth)/callback",
+        "(auth)/create-password",
+        "(auth)/new-password",
+      ];
 
-    if (session) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("password_set")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      // WAJIB isi password dulu
-      if (profile && profile.password_set === false) {
-        router.replace("/(auth)/create-password");
+      if (allowWithoutSession.includes(currentRoute)) {
+        checkedRef.current = true;
         return;
       }
 
-      // Sudah login & onboarding selesai
-      if (profile?.password_set && inAuthGroup) {
-        router.replace("/(app)/(tabs)/home");
-      }
-    }
-  };
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-  checkAuth();
-}, [segments]);
+      const inAuthGroup = segments[0] === "(auth)";
+
+      // ❌ belum login → paksa ke login
+      if (!session && !inAuthGroup) {
+        checkedRef.current = true;
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      if (session) {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("password_set")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn("Profile fetch error:", error.message);
+          checkedRef.current = true;
+          return;
+        }
+
+        // ❗ WAJIB isi password dulu
+        if (profile?.password_set === false) {
+          checkedRef.current = true;
+          router.replace("/(auth)/create-password");
+          return;
+        }
+
+        // ✅ sudah login + onboarding selesai
+        if (profile?.password_set && inAuthGroup) {
+          checkedRef.current = true;
+          router.replace("/(app)/(tabs)/home");
+        }
+      }
+
+      checkedRef.current = true;
+    };
+
+    checkAuth();
+  }, [segments]);
 
   return (
     <Stack
@@ -55,10 +88,10 @@ export default function RootLayout() {
       <Stack.Screen name="(auth)/login" options={{ title: "" }} />
       <Stack.Screen name="(auth)/register" options={{ title: "" }} />
       <Stack.Screen name="(auth)/verification" options={{ title: "" }} />
+      <Stack.Screen name="(auth)/callback" options={{ title: "" }} />
       <Stack.Screen name="(auth)/create-password" options={{ title: "" }} />
       <Stack.Screen name="(auth)/new-password" options={{ title: "" }} />
       <Stack.Screen name="(auth)/data" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/callback" options={{ title: "" }} />
 
       {/* APP */}
       <Stack.Screen name="(app)" options={{ headerShown: false }} />

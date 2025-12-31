@@ -118,6 +118,10 @@ export default function EditProfileScreen() {
 
   const initials = useMemo(() => getInitials(name || email), [name, email]);
 
+  const onPickBirthDate = () => {
+      Alert.alert("Info", "Date picker belum diimplementasikan");
+    };
+
   const onSave = async () => {
     if (!name.trim()) {
       Alert.alert("Validation", "Name tidak boleh kosong.");

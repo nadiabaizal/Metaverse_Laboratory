@@ -33,44 +33,78 @@ export default function CreatePasswordScreen() {
 
   const password = watch("password");
 
+  /**
+   * 🔐 SET SESSION DARI TOKEN URL (WAJIB)
+   */
   useEffect(() => {
-  const checkSession = async () => {
-    const { data } = await supabase.auth.getSession();
+    const initSession = async () => {
+      const access_token = params.access_token;
+      const refresh_token = params.refresh_token;
 
-    if (!data.session) {
-      Alert.alert("Session error", "Silakan buka link dari email");
-      router.replace("/(auth)/login");
+      if (!access_token || !refresh_token) {
+        Alert.alert("Session error", "Token tidak ditemukan. Buka link dari email.");
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+
+      if (error) {
+        Alert.alert("Session error", error.message);
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      setSessionReady(true);
+    };
+
+    initSession();
+  }, []);
+
+  /**
+   * 🔑 SIMPAN PASSWORD
+   */
+  const onSubmit = async () => {
+    if (!sessionReady) {
+      Alert.alert("Tunggu", "Session belum siap");
       return;
     }
 
-    setSessionReady(true);
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+
+      const user = data.user;
+
+      // ✅ pastikan profile ada (atau update)
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          email: user.email,
+          password_set: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+
+      if (profileError) throw profileError;
+
+      Alert.alert("Berhasil", "Password berhasil dibuat", [
+        {
+          text: "OK",
+          onPress: () => router.replace("/(auth)/data"),
+        },
+      ]);
+    } catch (e) {
+      Alert.alert("Gagal", e.message);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  checkSession();
-}, []);
-
-  const onSubmit = async () => {
-  if (!sessionReady) return;
-
-  setLoading(true);
-  try {
-    const { data, error } = await supabase.auth.updateUser({ password });
-    if (error) throw error;
-
-    await supabase
-      .from("profiles")
-      .update({ password_set: true })
-      .eq("id", data.user.id);
-
-    router.replace("/(auth)/data");
-  } catch (e) {
-    Alert.alert("Gagal", e.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
 
   return (
     <AppBackground>
