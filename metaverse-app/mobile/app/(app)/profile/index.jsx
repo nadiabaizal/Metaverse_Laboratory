@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,8 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 
-import { api } from "../../../src/lib/api";
 import { colors } from "../../../src/theme/colors";
 import { spacing } from "../../../src/theme/spacing";
 import { supabase } from "../../../src/lib/supabase";
@@ -52,44 +51,70 @@ export default function ProfileScreen() {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ ambil data user hasil register dari backend
-  useEffect(() => {
-    let mounted = true;
+  const loadMe = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1) Ambil user login Supabase
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (authErr) throw authErr;
 
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await api.get("/me");
-        if (mounted) setMe(res.data?.user ?? null);
-      } catch (e) {
-          console.log("GET /me failed:", e?.response?.status, e?.message);
-
-          // ✅ hanya redirect ke login kalau user BELUM logout manual
-          if (e?.response?.status === 401) {
-            router.replace("/(auth)/login");
-          }
-      } finally {
-        if (mounted) setLoading(false);
+      const user = authData?.user;
+      if (!user) {
+        setMe(null);
+        router.replace("/(auth)/login");
+        return;
       }
-    })();
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+      // fallback nama jika profiles belum ada tapi metadata ada
+      const metaName =
+        user?.user_metadata?.name ||
+        user?.user_metadata?.fullName ||
+        user?.user_metadata?.username ||
+        "";
 
-  // ✅ mapping data profile hasil register
+      // 2) Ambil profile dari table profiles
+      const { data: profileRow, error: pErr } = await supabase
+        .from("profiles")
+        .select("name, avatar_url")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      // kalau error RLS/kolom, log biar ketahuan
+      if (pErr) console.log("profiles select error:", pErr.message);
+
+      setMe({
+        id: user.id,
+        email: user.email,
+        profile: {
+          fullName: profileRow?.name || metaName || "",
+          avatarUrl: profileRow?.avatar_url || null,
+        },
+      });
+    } catch (e) {
+      console.log("PROFILE LOAD ERROR:", e?.message);
+      setMe(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  // ✅ auto refresh tiap kali screen Profile difokuskan (habis balik dari edit)
+  useFocusEffect(
+    useCallback(() => {
+      loadMe();
+    }, [loadMe])
+  );
+
+  // ✅ mapping data profile (tetap gaya awal kamu)
   const name = useMemo(() => {
-    return me?.profile?.fullName || me?.profile?.name || me?.email || "Username";
+    return me?.profile?.fullName || me?.email || "Username";
   }, [me]);
 
   const email = useMemo(() => {
     return me?.email || "username@stei.itb.ac.id";
   }, [me]);
 
-  // kalau backend kamu punya avatar url, pakai di sini:
   const avatarUri = useMemo(() => {
-    // contoh: me?.profile?.avatarUrl
     return me?.profile?.avatarUrl || null;
   }, [me]);
 
@@ -167,32 +192,24 @@ export default function ProfileScreen() {
           onPress={() => router.push("/(app)/profile/history")}
         />
 
-        <Row
-          icon="help-circle-outline"
-          label="Help"
-          onPress={() => alert("Help (todo)")}
-        />
+        <Row icon="help-circle-outline" label="Help" onPress={() => alert("Help (todo)")} />
 
         <Row
           icon="log-out-outline"
           label="Log Out"
           isLast
           onPress={() =>
-            Alert.alert(
-              "Log Out",
-              "Are you sure you want to log out?",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Log Out",
-                  style: "destructive",
-                  onPress: async () => {
-                    await supabase.auth.signOut();
+            Alert.alert("Log Out", "Are you sure you want to log out?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Log Out",
+                style: "destructive",
+                onPress: async () => {
+                  await supabase.auth.signOut();
                   router.replace("/(auth)/login");
-                  },
                 },
-              ]
-            )
+              },
+            ])
           }
         />
       </View>

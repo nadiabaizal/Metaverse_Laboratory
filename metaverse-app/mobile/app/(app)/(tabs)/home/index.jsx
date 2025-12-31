@@ -8,13 +8,14 @@ import {
   Pressable,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
-import { api } from "../../../../src/lib/api";
+import { supabase } from "../../../../src/lib/supabase";
 
 const roga = require("../../../../assets/images/roga.png");
 
@@ -71,40 +72,79 @@ function IconCircle({ name }) {
 
 export default function HomeScreen() {
   const router = useRouter();
+
+  // kita bikin struktur "me" selaras sama yang kamu pakai sebelumnya
+  // me = { email, profileCompleted, profile: { fullName, nik, birthDate, address } }
   const [me, setMe] = useState(null);
   const [loadingMe, setLoadingMe] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoadingMe(true);
-      try {
-        const res = await api.get("/me");
-        if (mounted) setMe(res.data?.user || null);
-      } catch (e) {
-        console.log("/me fetch failed", e?.response?.status, e?.message);
-      } finally {
-        if (mounted) setLoadingMe(false);
+  const loadMe = async () => {
+    setLoadingMe(true);
+    try {
+      // 1) ambil user supabase yang sedang login
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (authErr) throw authErr;
+
+      const user = authData?.user;
+      if (!user) {
+        setMe(null);
+        return;
       }
-    })();
-    return () => {
-      mounted = false;
-    };
+
+      // 2) ambil profile dari table "profiles" (yang kamu isi di (auth)/data.jsx)
+      const { data: profileRow, error: pErr } = await supabase
+        .from("profiles")
+        .select("name, nik, birth_date, address")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (pErr) throw pErr;
+
+      const profile = profileRow
+        ? {
+            fullName: profileRow.name || "",
+            nik: profileRow.nik || "",
+            birthDate: profileRow.birth_date || "",
+            address: profileRow.address || "",
+          }
+        : null;
+
+      const profileCompleted =
+        !!profile?.fullName && !!profile?.nik && !!profile?.birthDate && !!profile?.address;
+
+      setMe({
+        email: user.email,
+        profileCompleted,
+        profile,
+      });
+    } catch (e) {
+      console.log("HOME loadMe error:", e?.message);
+      setMe(null);
+    } finally {
+      setLoadingMe(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMe();
   }, []);
 
   const displayName = useMemo(() => {
-    const full = me?.profile?.fullName;
-    return full || me?.email || "Username";
+    const p = me?.profile || {};
+    if (p.fullName) return p.fullName;
+    if (me?.email) return me.email;
+    return "Username";
   }, [me]);
 
   const profileStatus = useMemo(() => {
     if (loadingMe) return "Loading...";
     if (!me) return "Profile status";
-    return me?.profileCompleted ? "Profile completed" : "Complete your profile";
+    return me.profileCompleted ? "Profile completed" : "Complete your profile";
   }, [me, loadingMe]);
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
 
+  // Tetap pakai featured dummy card (UI kamu tetap sama)
   const featuredEvent = {
     title: "Virtual Reality (VR)\nDevelopment Workshop",
     author: "Bernard Marr",
@@ -154,20 +194,26 @@ export default function HomeScreen() {
               <Text style={styles.username} numberOfLines={1}>
                 {displayName}
               </Text>
-              <Text style={styles.status} numberOfLines={1}>
-                {profileStatus}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={styles.status} numberOfLines={1}>
+                  {profileStatus}
+                </Text>
+                {loadingMe ? <ActivityIndicator size="small" /> : null}
+              </View>
             </View>
           </Pressable>
 
-          <Pressable onPress={() => router.push("/(app)/notification")} style={styles.notifBtn} hitSlop={10}>
+          <Pressable
+            onPress={() => router.push("/(app)/notification")}
+            style={styles.notifBtn}
+            hitSlop={10}
+          >
             <Ionicons name="notifications-outline" size={26} color="#111827" />
           </Pressable>
         </View>
 
-        {/* Quick actions (layout seperti gambar) */}
+        {/* Quick actions */}
         <View style={styles.quickWrap}>
-          {/* Row atas: Roga kiri, teks kanan */}
           <View style={styles.rogaTopRow}>
             <View style={styles.rogaWrap2}>
               <Image source={roga} style={styles.roga2} resizeMode="contain" />
@@ -180,32 +226,22 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Row bawah: 3 cards */}
           <View style={styles.quickCardsRow2}>
-            <Pressable
-              style={styles.quickCard2}
-              onPress={() => router.push("/(app)/(tabs)/facility")}
-            >
+            <Pressable style={styles.quickCard2} onPress={() => router.push("/(app)/(tabs)/facility")}>
               <IconCircle name="construct-outline" />
               <Text style={styles.quickText2} numberOfLines={2} ellipsizeMode="tail">
                 Tool’s{"\n"}Booking
               </Text>
             </Pressable>
 
-            <Pressable
-              style={styles.quickCard2}
-              onPress={() => router.push("/(app)/(tabs)/event")}
-            >
+            <Pressable style={styles.quickCard2} onPress={() => router.push("/(app)/(tabs)/event")}>
               <IconCircle name="easel-outline" />
               <Text style={styles.quickText2} numberOfLines={2} ellipsizeMode="tail">
                 Event{"\n"}Registration
               </Text>
             </Pressable>
 
-            <Pressable
-              style={styles.quickCard2}
-              onPress={() => router.push("/(app)/(tabs)/project")}
-            >
+            <Pressable style={styles.quickCard2} onPress={() => router.push("/(app)/(tabs)/project")}>
               <IconCircle name="hardware-chip-outline" />
               <Text style={styles.quickText2} numberOfLines={2} ellipsizeMode="tail">
                 Metaverse’s{"\n"}Project
@@ -226,11 +262,7 @@ export default function HomeScreen() {
 
               <View style={styles.pillRow}>
                 <PillButton label="Details" onPress={() => alert("Event details (todo)")} />
-                <PillButton
-                  label="Register Now"
-                  variant="outline"
-                  onPress={() => alert("Register event (todo)")}
-                />
+                <PillButton label="Register Now" variant="outline" onPress={() => alert("Register event (todo)")} />
               </View>
             </View>
           </View>
@@ -248,10 +280,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Tools */}
-        <SectionHeader
-          title="Available Tools"
-          onSeeMore={() => router.push("/(app)/(tabs)/facility")}
-        />
+        <SectionHeader title="Available Tools" onSeeMore={() => router.push("/(app)/(tabs)/facility")} />
         <View style={styles.cardLarge}>
           <View style={styles.cardTopRow}>
             <Image source={featuredTool.image} style={styles.cardThumb} />
@@ -272,10 +301,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Project */}
-        <SectionHeader
-          title="Check Out Our Project!"
-          onSeeMore={() => router.push("/(app)/(tabs)/project")}
-        />
+        <SectionHeader title="Check Out Our Project!" onSeeMore={() => router.push("/(app)/(tabs)/project")} />
         <View style={styles.cardLarge}>
           <View style={styles.projectRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
@@ -287,10 +313,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Organization / Team */}
-        <SectionHeader
-          title="Meet Our Team!"
-          onSeeMore={() => router.push("/(app)/(tabs)/organization")}
-        />
+        <SectionHeader title="Meet Our Team!" onSeeMore={() => router.push("/(app)/(tabs)/organization")} />
         <Pressable style={styles.teamCard} onPress={() => alert("Open member profile / chat (todo)")}>
           <Image source={teamMember.avatar} style={styles.teamAvatar} />
           <View style={{ flex: 1 }}>
@@ -302,39 +325,6 @@ export default function HomeScreen() {
             </View>
           </View>
         </Pressable>
-
-        {/* Contact */}
-        <View style={styles.contactWrap}>
-          <Text style={styles.contactTitle}>Contact Information</Text>
-          <Text style={styles.contactSub}>Have any question or discussion?</Text>
-
-          <View style={styles.contactItem}>
-            <Ionicons name="call" size={24} color={colors.primaryDark} />
-            <Text style={styles.contactText}>+62 1234 5678</Text>
-          </View>
-          <View style={styles.contactItem}>
-            <Ionicons name="mail" size={24} color={colors.primaryDark} />
-            <Text style={styles.contactText}>metaverse.itb@stei.itb.ac.id</Text>
-          </View>
-          <View style={[styles.contactItem, { alignItems: "center" }]}>
-            <Ionicons name="location" size={24} color={colors.primaryDark} />
-            <Text style={[styles.contactText, { flex: 1, textAlign: "center" }]}>
-              Jl. Ganesa No.10, Lb. Siliwangi, Kecamatan Coblong, Kota Bandung, Jawa Barat 40132
-            </Text>
-          </View>
-
-          <View style={styles.socialRow}>
-            <Pressable onPress={() => alert("Twitter (todo)")} style={styles.socialBtn}>
-              <Ionicons name="logo-twitter" size={22} color={colors.primaryDark} />
-            </Pressable>
-            <Pressable onPress={() => alert("Instagram (todo)")} style={styles.socialBtnPrimary}>
-              <Ionicons name="logo-instagram" size={22} color="#FFFFFF" />
-            </Pressable>
-            <Pressable onPress={() => alert("Discord (todo)")} style={styles.socialBtn}>
-              <Ionicons name="logo-discord" size={22} color={colors.primaryDark} />
-            </Pressable>
-          </View>
-        </View>
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -376,41 +366,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  /* ===== Quick actions (FINAL) ===== */
-  quickWrap: {
-    marginBottom: 10,
-  },
-  rogaTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 18,
-  },
-  rogaWrap2: {
-    width: 140,
-    height: 120,
-    backgroundColor: "transparent", // biar ga ada kotak putih dari wrapper
-  },
-  roga2: {
-    width: 140,
-    height: 140,
-    backgroundColor: "transparent",
-  },
-  greetingRight: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  rogaGreeting2: {
-    fontSize: 22,
-    lineHeight: 36,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
-  quickCardsRow2: {
-    flexDirection: "row",
-    gap: 10,
-    justifyContent: "space-between",
-  },
+  quickWrap: { marginBottom: 10 },
+  rogaTopRow: { flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 18 },
+  rogaWrap2: { width: 140, height: 120, backgroundColor: "transparent" },
+  roga2: { width: 140, height: 140, backgroundColor: "transparent" },
+  greetingRight: { flex: 1, justifyContent: "center" },
+  rogaGreeting2: { fontSize: 22, lineHeight: 36, fontWeight: "900", color: "#0F172A" },
+  quickCardsRow2: { flexDirection: "row", gap: 10, justifyContent: "space-between" },
   quickCard2: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -420,7 +382,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
-
     elevation: 6,
     shadowColor: "#000",
     shadowOpacity: 0.08,
@@ -443,7 +404,6 @@ const styles = StyleSheet.create({
     color: "rgba(15,23,42,0.55)",
   },
 
-  /* ===== rest (punya kamu, tidak diubah) ===== */
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -470,19 +430,9 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 18, fontWeight: "900", color: "#0F172A", lineHeight: 22 },
   cardTitleSingle: { fontSize: 20, fontWeight: "900", color: "#0F172A" },
   cardSub: { fontSize: 14, fontWeight: "700", color: "rgba(15,23,42,0.45)", marginTop: 4 },
-  pillRow: {
-  flexDirection: "row",
-  gap: 10,
-  marginTop: 10,
-  flexWrap: "nowrap",
-},
-  pillBtn: {
-  height: 40,
-  paddingHorizontal: 12,   // kita pakai flex, bukan padding gede
-  borderRadius: 999,
-  alignItems: "center",
-  justifyContent: "center",
-},
+
+  pillRow: { flexDirection: "row", gap: 10, marginTop: 10, flexWrap: "nowrap" },
+  pillBtn: { height: 40, paddingHorizontal: 12, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   pillOutline: { borderWidth: 2, borderColor: colors.primaryDark, backgroundColor: "#FFFFFF" },
   pillSolid: { borderWidth: 2, borderColor: colors.primaryDark, backgroundColor: "#FFFFFF" },
   pillText: { fontSize: 14, fontWeight: "800" },
@@ -490,53 +440,24 @@ const styles = StyleSheet.create({
   pillTextSolid: { color: colors.primaryDark },
 
   infoBar: {
-  marginTop: 12,
-  borderRadius: 18,
-  backgroundColor: "#F1F5F9",
-  paddingVertical: 12,
-  paddingHorizontal: 14,
-  flexDirection: "row",
-  gap: 14,
-  alignItems: "center",
-},
-
-  infoItem: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 10,
-  flex: 1,         // ⬅️ masing-masing ambil 1/2 space
-  minWidth: 0,     // ⬅️ penting biar text bisa wrap
-},
-  infoText: {
-  fontSize: 14,
-  fontWeight: "800",
-  color: "#0F172A",
-  flexShrink: 1,      // ⬅️ biar teks ga maksa keluar
-},
-
-  noteBox: {
     marginTop: 12,
     borderRadius: 18,
     backgroundColor: "#F1F5F9",
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    gap: 14,
+    alignItems: "center",
   },
+  infoItem: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0 },
+  infoText: { fontSize: 14, fontWeight: "800", color: "#0F172A", flexShrink: 1 },
+
+  noteBox: { marginTop: 12, borderRadius: 18, backgroundColor: "#F1F5F9", padding: 12 },
   noteText: { fontSize: 14, fontWeight: "700", color: "rgba(15,23,42,0.7)", lineHeight: 18 },
 
   projectRow: { flexDirection: "row", alignItems: "center" },
-  badge: {
-  color: "#2B246B",
-  fontSize: 22,     
-  lineHeight: 28,
-  fontWeight: "900",
-  marginBottom: 8,
-},
-  projectText: {
-  fontSize: 14,                 
-  lineHeight: 20,
-  fontWeight: "600",
-  color: "rgba(15,23,42,0.6)",   
-},
-
+  badge: { color: "#2B246B", fontSize: 22, lineHeight: 28, fontWeight: "900", marginBottom: 8 },
+  projectText: { fontSize: 14, lineHeight: 20, fontWeight: "600", color: "rgba(15,23,42,0.6)" },
   projectImg: { width: 120, height: 90, borderRadius: 22, backgroundColor: "#E2E8F0" },
 
   teamCard: {
@@ -566,27 +487,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
   },
   rolePillText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
-
-  contactWrap: { marginTop: 26, alignItems: "center" },
-  contactTitle: { fontSize: 34, fontWeight: "900", color: "#3B2E8D", textAlign: "center" },
-  contactSub: { fontSize: 16, fontWeight: "700", color: "rgba(124, 88, 255, 0.35)", marginTop: 6 },
-  contactItem: { alignItems: "center", gap: 10, marginTop: 18 },
-  contactText: { fontSize: 18, fontWeight: "800", color: "#2B246B", textAlign: "center" },
-  socialRow: { flexDirection: "row", gap: 18, marginTop: 30, marginBottom: 14 },
-  socialBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  socialBtnPrimary: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primaryDark,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });

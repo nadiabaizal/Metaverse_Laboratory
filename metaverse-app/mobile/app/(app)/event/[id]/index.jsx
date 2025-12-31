@@ -1,5 +1,14 @@
 import React, { useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, ScrollView, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  Dimensions,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { spacing } from "../../../../src/theme/spacing";
@@ -12,7 +21,10 @@ const HERO_H = 220;
 export default function EventDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const eventId = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "unity-vr";
+
+  const eventId =
+    typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "unity-vr";
+
   const event = useMemo(() => getEventById(eventId), [eventId]);
 
   const [page, setPage] = useState(0);
@@ -24,7 +36,14 @@ export default function EventDetailsScreen() {
     if (idx !== page) setPage(idx);
   };
 
-  const goRegister = () => router.push({ pathname: "/(app)/event/[id]/register", params: { id: event.id } });
+  const goRegister = () =>
+    router.push({ pathname: "/(app)/event/[id]/register", params: { id: event.id } });
+
+  const timeText = useMemo(() => {
+    if (event?.timeLabel && event?.endTimeLabel) return `${event.timeLabel} - ${event.endTimeLabel}`;
+    if (event?.timeLabel) return event.timeLabel;
+    return "-";
+  }, [event]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -80,10 +99,18 @@ export default function EventDetailsScreen() {
             ))}
           </View>
 
+          {/* ✅ Tambahan info lengkap */}
           <SectionTitle icon="information-circle-outline" title="Information" />
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Location</Text>
-            <Text style={styles.infoSub}>{event.location}</Text>
+          <View style={styles.infoGrid}>
+            <InfoItem icon="calendar-outline" label="Date" value={event.dateLabel || "-"} />
+            <InfoItem icon="time-outline" label="Time" value={timeText} />
+          </View>
+
+          <View style={{ marginTop: 12 }}>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoTitle}>Location</Text>
+              <Text style={styles.infoSub}>{event.location || "-"}</Text>
+            </View>
           </View>
 
           <View style={{ height: 14 }} />
@@ -102,6 +129,20 @@ function SectionTitle({ icon, title }) {
     <View style={styles.sectionRow}>
       <Ionicons name={icon} size={28} color="#111827" />
       <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function InfoItem({ icon, label, value }) {
+  return (
+    <View style={styles.infoMiniCard}>
+      <View style={styles.infoMiniTop}>
+        <Ionicons name={icon} size={20} color="#2D2A7B" />
+        <Text style={styles.infoMiniLabel}>{label}</Text>
+      </View>
+      <Text style={styles.infoMiniValue} numberOfLines={2}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -174,15 +215,31 @@ const styles = StyleSheet.create({
   bullet: { fontSize: 22, lineHeight: 26, color: "#334155" },
   bulletText: { flex: 1, fontSize: 18, lineHeight: 26, color: "#334155" },
 
-  infoCard: {
+  // ✅ grid info time/date
+  infoGrid: {
     marginTop: 16,
+    flexDirection: "row",
+    gap: 12,
+  },
+  infoMiniCard: {
+    flex: 1,
     borderRadius: 18,
     borderWidth: 2,
     borderColor: "#CBD5E1",
     padding: spacing.l,
     backgroundColor: "#FFFFFF",
   },
+  infoMiniTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  infoMiniLabel: { fontSize: 14, fontWeight: "900", color: "#111827" },
+  infoMiniValue: { marginTop: 10, fontSize: 14, fontWeight: "800", color: "#64748B" },
 
+  infoCard: {
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    padding: spacing.l,
+    backgroundColor: "#FFFFFF",
+  },
   infoTitle: { fontSize: 16, fontWeight: "900", color: "#111827" },
   infoSub: { marginTop: 8, fontSize: 14, fontWeight: "700", color: "#9CA3AF" },
 
