@@ -1,70 +1,58 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-
 import { supabase } from "../src/lib/supabase";
 import { colors } from "../src/theme/colors";
-
-// ✅ penting: inject token ke axios api
 import { setAuthToken } from "../src/lib/api";
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
 
+  // 🔑 sync auth token ke axios
   useEffect(() => {
-    // sync token pertama kali app dibuka
-    const syncToken = async () => {
+    const init = async () => {
       const { data } = await supabase.auth.getSession();
-      const session = data.session;
-      setAuthToken(session?.access_token || "");
+      setAuthToken(data.session?.access_token || "");
     };
-    syncToken();
 
-    // sync token setiap auth berubah
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthToken(session?.access_token || "");
-    });
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setAuthToken(session?.access_token || "");
+      }
+    );
 
     return () => {
-      sub?.subscription?.unsubscribe?.();
+      listener?.subscription?.unsubscribe?.();
     };
   }, []);
 
+  // 🔐 routing guard (DISESUAIKAN)
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       const session = data.session;
 
       const inAuthGroup = segments[0] === "(auth)";
+      const isCreatePassword = segments[1] === "create-password";
+      const isProfileData = segments[1] === "data";
 
-      // belum login → arahkan ke login
+      // ❌ belum login → paksa ke login
       if (!session && !inAuthGroup) {
         router.replace("/(auth)/login");
         return;
       }
 
-      // sudah login
+      // ✅ sudah login
       if (session) {
-        // (optional) kalau kamu punya flow password_set
-        try {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("password_set")
-            .eq("id", session.user.id)
-            .maybeSingle();
+        // ⛔ IZINKAN halaman onboarding (create-password & data)
+        if (isCreatePassword || isProfileData) return;
 
-          if (profile && profile.password_set === false) {
-            router.replace("/(auth)/create-password");
-            return;
-          }
-
-          if (profile?.password_set && inAuthGroup) {
-            router.replace("/(app)/(tabs)/home");
-            return;
-          }
-        } catch (e) {
-          // kalau table profiles tidak ada / belum siap, biarkan lanjut
-          if (inAuthGroup) router.replace("/(app)/(tabs)/home");
+        // ❌ sudah login tapi masih di auth
+        if (inAuthGroup) {
+          router.replace("/(app)/(tabs)/home");
+          return;
         }
       }
     };

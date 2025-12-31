@@ -16,7 +16,7 @@ import { supabase } from "../../src/lib/supabase";
 
 export default function CreatePasswordScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const { access_token, refresh_token } = useLocalSearchParams();
 
   const [loading, setLoading] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
@@ -33,17 +33,11 @@ export default function CreatePasswordScreen() {
 
   const password = watch("password");
 
-  /**
-   * 🔐 SET SESSION DARI TOKEN URL (WAJIB)
-   */
+  // ✅ SET SESSION DARI TOKEN
   useEffect(() => {
     const initSession = async () => {
-      const access_token = params.access_token;
-      const refresh_token = params.refresh_token;
-
       if (!access_token || !refresh_token) {
         Alert.alert("Session error", "Token tidak ditemukan. Buka link dari email.");
-        router.replace("/(auth)/login");
         return;
       }
 
@@ -54,7 +48,6 @@ export default function CreatePasswordScreen() {
 
       if (error) {
         Alert.alert("Session error", error.message);
-        router.replace("/(auth)/login");
         return;
       }
 
@@ -64,9 +57,7 @@ export default function CreatePasswordScreen() {
     initSession();
   }, []);
 
-  /**
-   * 🔑 SIMPAN PASSWORD
-   */
+  // ✅ SIMPAN PASSWORD
   const onSubmit = async () => {
     if (!sessionReady) {
       Alert.alert("Tunggu", "Session belum siap");
@@ -75,27 +66,12 @@ export default function CreatePasswordScreen() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.updateUser({ password });
+      const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-
-      const user = data.user;
-
-      // ✅ pastikan profile ada (atau update)
-      const { error: profileError } = await supabase.from("profiles").upsert(
-        {
-          id: user.id,
-          email: user.email,
-          password_set: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
-
-      if (profileError) throw profileError;
 
       Alert.alert("Berhasil", "Password berhasil dibuat", [
         {
-          text: "OK",
+          text: "Lanjut",
           onPress: () => router.replace("/(auth)/data"),
         },
       ]);
@@ -116,9 +92,7 @@ export default function CreatePasswordScreen() {
           label="New Password"
           placeholder="New Password"
           value={watch("password")}
-          onChangeText={(t) =>
-            setValue("password", t, { shouldValidate: true })
-          }
+          onChangeText={(t) => setValue("password", t, { shouldValidate: true })}
           secureTextEntry
           error={errors.password?.message}
         />
@@ -127,19 +101,10 @@ export default function CreatePasswordScreen() {
           label="Confirm Password"
           placeholder="Confirm Password"
           value={watch("confirm")}
-          onChangeText={(t) =>
-            setValue("confirm", t, { shouldValidate: true })
-          }
+          onChangeText={(t) => setValue("confirm", t, { shouldValidate: true })}
           secureTextEntry
           error={errors.confirm?.message}
         />
-
-        <View style={styles.rules}>
-          <Text style={styles.rule}>• 8 characters minimum</Text>
-          <Text style={styles.rule}>• one lowercase letter</Text>
-          <Text style={styles.rule}>• one number</Text>
-          <Text style={styles.rule}>• one uppercase letter</Text>
-        </View>
 
         <PrimaryButton
           title="Create Password"
@@ -168,15 +133,5 @@ const styles = StyleSheet.create({
     color: colors.white,
     textAlign: "center",
     marginBottom: spacing.xl,
-  },
-  rules: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: spacing.xl,
-  },
-  rule: {
-    color: colors.white70,
-    width: "48%",
   },
 });
