@@ -33,61 +33,44 @@ export default function CreatePasswordScreen() {
 
   const password = watch("password");
 
-  /**
-   * 🔐 SET SESSION DARI TOKEN URL
-   */
   useEffect(() => {
-    const initSession = async () => {
-      const access_token = params.access_token;
-      const refresh_token = params.refresh_token;
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession();
 
-      if (!access_token || !refresh_token) {
-        Alert.alert("Error", "Token tidak ditemukan");
-        return;
-      }
-
-      const { error } = await supabase.auth.setSession({
-        access_token,
-        refresh_token,
-      });
-
-      if (error) {
-        Alert.alert("Session error", error.message);
-        return;
-      }
-
-      setSessionReady(true);
-    };
-
-    initSession();
-  }, []);
-
-  /**
-   * 🔑 UPDATE PASSWORD (HANYA SAAT USER SUBMIT)
-   */
-  const onSubmit = async () => {
-    if (!sessionReady) {
-      Alert.alert("Tunggu", "Session belum siap");
+    if (!data.session) {
+      Alert.alert("Session error", "Silakan buka link dari email");
+      router.replace("/(auth)/login");
       return;
     }
 
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
-
-      Alert.alert("Berhasil", "Password berhasil dibuat", [
-        {
-          text: "OK",
-          onPress: () => router.replace("/(auth)/data"),
-        },
-      ]);
-    } catch (e) {
-      Alert.alert("Gagal", e.message);
-    } finally {
-      setLoading(false);
-    }
+    setSessionReady(true);
   };
+
+  checkSession();
+}, []);
+
+  const onSubmit = async () => {
+  if (!sessionReady) return;
+
+  setLoading(true);
+  try {
+    const { data, error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+
+    await supabase
+      .from("profiles")
+      .update({ password_set: true })
+      .eq("id", data.user.id);
+
+    router.replace("/(auth)/data");
+  } catch (e) {
+    Alert.alert("Gagal", e.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   return (
     <AppBackground>
