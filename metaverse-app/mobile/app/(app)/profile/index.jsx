@@ -8,6 +8,7 @@ import {
   Image,
   Switch,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -15,6 +16,7 @@ import { useRouter } from "expo-router";
 import { api } from "../../../src/lib/api";
 import { colors } from "../../../src/theme/colors";
 import { spacing } from "../../../src/theme/spacing";
+import { supabase } from "../../../src/lib/supabase";
 
 function getInitials(fullNameOrEmail) {
   if (!fullNameOrEmail) return "U";
@@ -60,7 +62,12 @@ export default function ProfileScreen() {
         const res = await api.get("/me");
         if (mounted) setMe(res.data?.user ?? null);
       } catch (e) {
-        console.log("GET /me failed:", e?.response?.status, e?.message);
+          console.log("GET /me failed:", e?.response?.status, e?.message);
+
+          // ✅ hanya redirect ke login kalau user BELUM logout manual
+          if (e?.response?.status === 401) {
+            router.replace("/(auth)/login");
+          }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -170,7 +177,23 @@ export default function ProfileScreen() {
           icon="log-out-outline"
           label="Log Out"
           isLast
-          onPress={() => alert("Logout (todo)")}
+          onPress={() =>
+            Alert.alert(
+              "Log Out",
+              "Are you sure you want to log out?",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Log Out",
+                  style: "destructive",
+                  onPress: async () => {
+                    await supabase.auth.signOut();
+                  router.replace("/(auth)/login");
+                  },
+                },
+              ]
+            )
+          }
         />
       </View>
     </SafeAreaView>

@@ -1,43 +1,89 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Alert } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import AppBackground from "../../src/components/AppBackground";
 import TextField from "../../src/components/TextField";
 import PrimaryButton from "../../src/components/PrimaryButton";
+
 import { colors } from "../../src/theme/colors";
 import { spacing } from "../../src/theme/spacing";
 import { type } from "../../src/theme/typography";
 import { passwordSchema } from "../../src/lib/validators";
-import { api, setAuthToken } from "../../src/lib/api";
+import { supabase } from "../../src/lib/supabase";
 
 export default function CreatePasswordScreen() {
   const router = useRouter();
-  const { email, resetToken } = useLocalSearchParams();
-  const [loading, setLoading] = useState(false);
+  const params = useLocalSearchParams();
 
-  const { setValue, watch, handleSubmit, formState: { errors } } = useForm({
+  const [loading, setLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  const {
+    setValue,
+    watch,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
     resolver: zodResolver(passwordSchema),
     defaultValues: { password: "", confirm: "" },
   });
 
   const password = watch("password");
-  const confirm = watch("confirm");
 
-  const onSubmit = async (data) => {
+  /**
+   * 🔐 SET SESSION DARI TOKEN URL
+   */
+  useEffect(() => {
+    const initSession = async () => {
+      const access_token = params.access_token;
+      const refresh_token = params.refresh_token;
+
+      if (!access_token || !refresh_token) {
+        Alert.alert("Error", "Token tidak ditemukan");
+        return;
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      });
+
+      if (error) {
+        Alert.alert("Session error", error.message);
+        return;
+      }
+
+      setSessionReady(true);
+    };
+
+    initSession();
+  }, []);
+
+  /**
+   * 🔑 UPDATE PASSWORD (HANYA SAAT USER SUBMIT)
+   */
+  const onSubmit = async () => {
+    if (!sessionReady) {
+      Alert.alert("Tunggu", "Session belum siap");
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await api.post("/auth/register/set-password", {
-        email,
-        resetToken,
-        password: data.password,
-      });
-      setAuthToken(res.data.token);
-      router.replace("/(auth)/data");
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+
+      Alert.alert("Berhasil", "Password berhasil dibuat", [
+        {
+          text: "OK",
+          onPress: () => router.replace("/(auth)/data"),
+        },
+      ]);
     } catch (e) {
-      alert(e?.response?.data?.message || "Gagal set password");
+      Alert.alert("Gagal", e.message);
     } finally {
       setLoading(false);
     }
@@ -52,8 +98,10 @@ export default function CreatePasswordScreen() {
         <TextField
           label="New Password"
           placeholder="New Password"
-          value={password}
-          onChangeText={(t) => setValue("password", t, { shouldValidate: true })}
+          value={watch("password")}
+          onChangeText={(t) =>
+            setValue("password", t, { shouldValidate: true })
+          }
           secureTextEntry
           error={errors.password?.message}
         />
@@ -61,8 +109,10 @@ export default function CreatePasswordScreen() {
         <TextField
           label="Confirm Password"
           placeholder="Confirm Password"
-          value={confirm}
-          onChangeText={(t) => setValue("confirm", t, { shouldValidate: true })}
+          value={watch("confirm")}
+          onChangeText={(t) =>
+            setValue("confirm", t, { shouldValidate: true })
+          }
           secureTextEntry
           error={errors.confirm?.message}
         />
@@ -74,16 +124,42 @@ export default function CreatePasswordScreen() {
           <Text style={styles.rule}>• one uppercase letter</Text>
         </View>
 
-        <PrimaryButton title="Create Password" onPress={handleSubmit(onSubmit)} loading={loading} />
+        <PrimaryButton
+          title="Create Password"
+          loading={loading}
+          onPress={handleSubmit(onSubmit)}
+        />
       </View>
     </AppBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: 110 },
-  title: { ...type.h1, color: colors.white, textAlign: "center", marginBottom: 18 },
-  sub: { ...type.h2, color: colors.white, textAlign: "center", marginBottom: spacing.xl },
-  rules: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: spacing.xl },
-  rule: { color: colors.white70, width: "48%" },
+  container: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 110,
+  },
+  title: {
+    ...type.h1,
+    color: colors.white,
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  sub: {
+    ...type.h2,
+    color: colors.white,
+    textAlign: "center",
+    marginBottom: spacing.xl,
+  },
+  rules: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: spacing.xl,
+  },
+  rule: {
+    color: colors.white70,
+    width: "48%",
+  },
 });

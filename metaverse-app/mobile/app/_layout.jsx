@@ -1,23 +1,44 @@
-import { Stack } from "expo-router";
-import { colors } from "../src/theme/colors";
+import { Stack, usePathname, useRouter } from "expo-router";
+import { useEffect } from "react";
+import { supabase } from "../src/lib/supabase";
 
 export default function RootLayout() {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const inAuthGroup = pathname.startsWith("/(auth)");
+      const isPasswordPage =
+        pathname.includes("create-password") ||
+        pathname.includes("new-password");
+
+      // ❌ belum login → paksa ke login
+      if (!session && !inAuthGroup) {
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      // ❌ SUDAH LOGIN tapi masih di login/register → ke home
+      if (session && inAuthGroup && !isPasswordPage) {
+        router.replace("/(app)/(tabs)/home");
+        return;
+      }
+
+      // ✅ BIARKAN create-password & new-password JALAN
+    };
+
+    checkSession();
+  }, [pathname]);
+
   return (
-    <Stack
-      screenOptions={{
-        headerTransparent: true,
-        headerTitleStyle: { color: colors.white, fontWeight: "700" },
-        headerTintColor: colors.white,
-        headerBackTitleVisible: false,
-      }}
-    >
-      <Stack.Screen name="(auth)/login" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/register" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/forgot-password" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/verification" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/create-password" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/new-password" options={{ title: "" }} />
-      <Stack.Screen name="(app)" options={{ headerShown: false }} />
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(app)" />
     </Stack>
   );
 }
