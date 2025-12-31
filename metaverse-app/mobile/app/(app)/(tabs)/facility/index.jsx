@@ -1,245 +1,286 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  TextInput,
   SafeAreaView,
+  TextInput,
+  Pressable,
+  Image,
+  FlatList,
 } from "react-native";
-import { Stack } from "expo-router";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
-const TAB_BAR_HEIGHT = 25; // ⬅️ sesuaikan dengan CustomTabBar kamu
+import { spacing } from "../../../../src/theme/spacing";
+import { MOCK_FACILITIES } from "../../../../src/data/mockFacilities";
 
-const FACILITIES = [
-  {
-    id: "1",
-    title: "High Performance PC",
-    description:
-      "Powerful PC built for high-end VR development and rendering complex scenes",
-    image: "https://i.imgur.com/zM0kX8L.png",
-    available: 3,
-  },
-  {
-    id: "2",
-    title: "Oculus Quest 2",
-    description:
-      "A standalone VR headset with 6DOF tracking for a fully immersive experience",
-    image: "https://i.imgur.com/zM0kX8L.png",
-    available: 4, 
-  },
-  {
-    id: "3",
-    title: "Oculus Quest 2",
-    description:
-      "A standalone VR headset with 6DOF tracking for a fully immersive experience",
-    image: "https://i.imgur.com/zM0kX8L.png",
-    available: 4,
-  },
-  {
-    id: "4",
-    title: "Oculus Quest 2",
-    description:
-      "A standalone VR headset with 6DOF tracking for a fully immersive experience",
-    image: "https://i.imgur.com/zM0kX8L.png",
-    available: 4,
-  },
-  {    
-    id: "5",
-    title: "Oculus Quest 2",
-    description:
-      "A standalone VR headset with 6DOF tracking for a fully immersive experience",
-    image: "https://i.imgur.com/zM0kX8L.png",
-    available: 4,
-  },
+const FILTERS = [
+  { key: "available", label: "Available" },
+  { key: "latest", label: "Latest Added" },
+  { key: "oldest", label: "Oldest Added" },
 ];
 
 export default function FacilityScreen() {
-  const [activeTab, setActiveTab] = useState("Available");
-  const [search, setSearch] = useState("");
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("available");
+
+  const data = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    let list = MOCK_FACILITIES.filter((t) => {
+      if (!q) return true;
+      return (
+        t.title.toLowerCase().includes(q) ||
+        t.shortDescription.toLowerCase().includes(q)
+      );
+    });
+
+    if (activeFilter === "available") {
+      list = list.slice().sort((a, b) => (b.available ?? 0) - (a.available ?? 0));
+    } else if (activeFilter === "latest") {
+      list = list
+        .slice()
+        .sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+    } else if (activeFilter === "oldest") {
+      list = list
+        .slice()
+        .sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+    }
+
+    return list;
+  }, [query, activeFilter]);
+
+  const openDetails = (item) => {
+    router.push({ pathname: "/(app)/facility/[id]", params: { id: item.id } });
+  };
+
+  const openBooking = (item) => {
+    router.push({ pathname: "/(app)/facility/[id]/booking", params: { id: item.id } });
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <Stack.Screen
-        options={{
-          title: "Facility",
-          headerTitleAlign: "center",
-        }}
-      />
+    <View style={styles.screen}>
+      {/* SafeArea hanya untuk header (biar konsisten dgn Event) */}
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+            <Ionicons name="chevron-back" size={24} color="#111827" />
+          </Pressable>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        content
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: TAB_BAR_HEIGHT + 28, // ⬅️ PENTING
-        }}
-      >
-        {/* SEGMENT */}
-        <View style={styles.segment}>
-          {["Available", "Latest Added", "Oldest Added"].map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={[
-                styles.segmentItem,
-                activeTab === item && styles.segmentActive,
-              ]}
-              onPress={() => setActiveTab(item)}
-            >
-              <Text
-                style={[
-                  styles.segmentText,
-                  activeTab === item && styles.segmentTextActive,
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <Text style={styles.headerTitle}>Facility</Text>
+
+          {/* spacer agar title center */}
+          <View style={{ width: 40 }} />
+        </View>
+      </SafeAreaView>
+
+      {/* Konten di luar SafeArea */}
+      <View style={styles.content}>
+        {/* ✅ SEARCH (posisi & style DISAMAKAN dengan Event) */}
+        <View style={styles.searchWrap}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={20} color="#9CA3AF" />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search Tools..."
+              placeholderTextColor="#9CA3AF"
+              style={styles.searchInput}
+              returnKeyType="search"
+            />
+            {query.length > 0 && (
+              <Pressable onPress={() => setQuery("")} hitSlop={10}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              </Pressable>
+            )}
+          </View>
         </View>
 
-        {/* SEARCH */}
-        <View style={styles.searchBox}>
-          <TextInput
-            placeholder="Search Tools..."
-            value={search}
-            onChangeText={setSearch}
-            style={styles.searchInput}
-            placeholderTextColor="#9CA3AF"
-          />
+        {/* ✅ SEGMENT FILTER (di bawah search, sama dgn Event) */}
+        <View style={styles.segmentOuter}>
+          <View style={styles.segment}>
+            {FILTERS.map((f) => {
+              const active = f.key === activeFilter;
+              return (
+                <Pressable
+                  key={f.key}
+                  onPress={() => setActiveFilter(f.key)}
+                  style={[styles.segItem, active && styles.segItemActive]}
+                >
+                  <Text style={[styles.segText, active && styles.segTextActive]} numberOfLines={1}>
+                    {f.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        {/* CARDS */}
-        {FACILITIES.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <Image source={item.image} style={styles.cardImage} />
+        {/* LIST */}
+        <FlatList
+          data={data}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.xl, // konsisten sama Event
+            paddingTop: spacing.l,
+            paddingBottom: 120,
+          }}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <Image source={{ uri: item.images?.[0] }} style={styles.thumb} />
 
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.cardDesc}>{item.description}</Text>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <Text style={styles.cardDesc} numberOfLines={2}>
+                  {item.shortDescription}
+                </Text>
 
-              <Text style={styles.available}>
-                {item.available} more left
-              </Text>
+                <Text style={styles.leftText}>{item.available} more left</Text>
 
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.detailBtn}>
-                  <Text style={styles.detailText}>Details</Text>
-                </TouchableOpacity>
+                <View style={styles.btnRow}>
+                  <Pressable style={styles.btnOutline} onPress={() => openDetails(item)}>
+                    <Text style={styles.btnOutlineText}>Details</Text>
+                  </Pressable>
 
-                <TouchableOpacity style={styles.bookBtn}>
-                  <Text style={styles.bookText}>Book Now</Text>
-                </TouchableOpacity>
+                  <Pressable
+                    style={[styles.btnPrimary, item.available <= 0 && styles.btnDisabled]}
+                    onPress={() => openBooking(item)}
+                    disabled={item.available <= 0}
+                  >
+                    <Text style={styles.btnPrimaryText}>Book Now</Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
-          </View>
-        ))}
-      </ScrollView>
-    </SafeAreaView>
+          )}
+          ListEmptyComponent={
+            <View style={{ paddingTop: 40, alignItems: "center" }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#111827" }}>
+                No tools found
+              </Text>
+              <Text style={{ marginTop: 6, color: "#6B7280" }}>Try a different keyword.</Text>
+            </View>
+          }
+        />
+      </View>
+    </View>
   );
 }
 
-const PRIMARY = "#3B2F6B";
-
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#FFFFFF" },
+  safe: { backgroundColor: "#FFFFFF" },
+  content: { flex: 1, backgroundColor: "#FFFFFF" },
+
+  // ✅ STANDARD HEADER (sama style struktur Event)
+  header: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.l,
+    paddingHorizontal: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: 0.2,
+  },
+
+  // ✅ SEARCH (disamain persis dengan Event)
+  searchWrap: { paddingHorizontal: spacing.xl },
+  searchBox: {
+    height: 54,
+    borderRadius: 16,
+    paddingHorizontal: spacing.l,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    gap: spacing.m,
+  },
+  searchInput: { flex: 1, fontSize: 16, color: "#111827" },
+
+  // ✅ SEGMENT (disamain persis dengan Event)
+  segmentOuter: { paddingHorizontal: spacing.xl, paddingTop: spacing.l },
   segment: {
     flexDirection: "row",
-    backgroundColor: "#EEF2F7",
-    borderRadius: 24,
-    padding: 4,
-    marginVertical: 16,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 30,
+    padding: 6,
+    gap: 6,
   },
-  segmentItem: {
+  segItem: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 20,
-    alignItems: "center",
-  },
-  segmentActive: {
-    backgroundColor: PRIMARY,
-  },
-  segmentText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#9CA3AF",
-  },
-  segmentTextActive: {
-    color: "#FFFFFF",
-  },
-
-  searchBox: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginBottom: 20,
-  },
-  searchInput: {
     height: 44,
-    fontSize: 14,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  segItemActive: { backgroundColor: "#2D2A7B" },
+  segText: { fontSize: 14, fontWeight: "800", color: "#9CA3AF" },
+  segTextActive: { color: "#FFFFFF" },
 
+  // CARD
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 22,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+    marginBottom: spacing.xl,
+    padding: spacing.l,
     flexDirection: "row",
-    marginBottom: 20,
+    gap: spacing.l,
+    borderWidth: 1,
+    borderColor: "#EEF2F7",
   },
-  cardImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    marginRight: 20,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 6,
-  },
-  available: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: PRIMARY,
-    marginBottom: 10,
-  },
+  thumb: { width: 92, height: 92, borderRadius: 18, backgroundColor: "#E5E7EB" },
 
-  cardActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  detailBtn: {
+  cardBody: { flex: 1 },
+  cardTitle: { fontSize: 20, fontWeight: "900", color: "#111827" },
+  cardDesc: { marginTop: 6, color: "#6B7280", fontWeight: "700", lineHeight: 18 },
+  leftText: { marginTop: 10, fontWeight: "900", color: "#111827" },
+
+  btnRow: { flexDirection: "row", gap: spacing.m, marginTop: spacing.l },
+  btnOutline: {
     flex: 1,
-    borderWidth: 1.2,
-    borderColor: PRIMARY,
+    height: 54,
     borderRadius: 16,
-    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: "#2D2A7B",
     alignItems: "center",
+    justifyContent: "center",
   },
-  detailText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: PRIMARY,
-  },
-  bookBtn: {
+  btnOutlineText: { fontSize: 16, fontWeight: "900", color: "#2D2A7B" },
+
+  btnPrimary: {
     flex: 1,
-    backgroundColor: PRIMARY,
-    borderRadius: 10,
-    paddingVertical: 8,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: "#2D2A7B",
     alignItems: "center",
+    justifyContent: "center",
   },
-  bookText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
+  btnDisabled: { opacity: 0.55 },
+  btnPrimaryText: { fontSize: 16, fontWeight: "900", color: "#FFFFFF" },
 });
