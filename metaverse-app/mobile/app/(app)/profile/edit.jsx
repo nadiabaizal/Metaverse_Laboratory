@@ -71,15 +71,14 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [me, setMe] = useState(null);
 
-  // fields
   const [nik, setNik] = useState("");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(""); // biasanya email dari auth (opsional: read-only)
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [address, setAddress] = useState("");
 
-  // ✅ fetch data hasil register
+  // ✅ fetch profile
   useEffect(() => {
     let mounted = true;
 
@@ -92,16 +91,21 @@ export default function EditProfileScreen() {
 
         setMe(user);
 
-        // sesuaikan key profile kamu yang dipakai saat register
         const p = user?.profile || {};
         setNik(p?.nik ? String(p.nik) : "");
         setName(p?.fullName || p?.name || "");
         setEmail(user?.email || "");
         setPhone(p?.phoneNumber || p?.phone || "");
         setBirthDate(p?.birthDate || "");
-        setAddress(p?.address || p?.alamat || "");
+        setAddress(p?.address || "");
       } catch (e) {
         console.log("GET /me failed:", e?.response?.status, e?.message);
+
+        // 🔐 session habis → login ulang
+        if (e?.response?.status === 401) {
+          Alert.alert("Session expired", "Silakan login kembali.");
+          router.replace("/(auth)/login");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -114,12 +118,7 @@ export default function EditProfileScreen() {
 
   const initials = useMemo(() => getInitials(name || email), [name, email]);
 
-  const onPickBirthDate = () => {
-    Alert.alert("Todo", "Open date picker (belum dipasang)");
-  };
-
   const onSave = async () => {
-    // validasi minimal (boleh kamu tambah)
     if (!name.trim()) {
       Alert.alert("Validation", "Name tidak boleh kosong.");
       return;
@@ -127,8 +126,6 @@ export default function EditProfileScreen() {
 
     setSaving(true);
     try {
-      // ✅ samakan dengan flow register kamu: POST /me/profile
-      // payload ini disesuaikan supaya match dengan backend kamu
       const payload = {
         nik,
         fullName: name,

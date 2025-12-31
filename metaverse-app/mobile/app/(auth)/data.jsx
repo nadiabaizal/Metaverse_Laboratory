@@ -1,48 +1,77 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+
 import AppBackground from "../../src/components/AppBackground";
 import TextField from "../../src/components/TextField";
 import PrimaryButton from "../../src/components/PrimaryButton";
+
 import { colors } from "../../src/theme/colors";
 import { spacing } from "../../src/theme/spacing";
 import { type } from "../../src/theme/typography";
+
 import { profileSchema } from "../../src/lib/validators";
-import { api, setAuthToken } from "../../src/lib/api";
+import { supabase } from "../../src/lib/supabase";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const { setValue, watch, handleSubmit, formState: { errors } } = useForm({
+  const {
+    setValue,
+    watch,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
     resolver: zodResolver(profileSchema),
-    defaultValues: { fullName: "", nik: "", birthDate: "", address: "" },
+    defaultValues: {
+      fullName: "",
+      nik: "",
+      birthDate: "",
+      address: "",
+    },
   });
 
-  const fullName = watch("fullName");
-  const nik = watch("nik");
-  const birthDate = watch("birthDate");
-  const address = watch("address");
+  const onSubmit = async (form) => {
+    setLoading(true);
+    try {
+      // 1️⃣ ambil user login
+      const { data, error: authError } = await supabase.auth.getUser();
 
-  const onSubmit = async (data) => {
-  setLoading(true);
-  try {
-    await api.post("/me/profile", data);
-    alert("Profile saved!");
+      if (authError || !data?.user) {
+        Alert.alert("Error", "User belum login");
+        return;
+      }
 
-    // ✅ setelah register selesai, user HARUS login ulang
-    setAuthToken(null);
-    router.replace("/(auth)/login");
-  } catch (e) {
-    alert(e?.response?.data?.message || "Gagal simpan profile");
-  } finally {
-    setLoading(false);
-  }
-};
+      const user = data.user;
 
+      // 2️⃣ simpan / update profile
+      const { error } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          name: form.fullName,
+          nik: form.nik,
+          birth_date: form.birthDate, // format YYYY-MM-DD
+          address: form.address,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+
+      if (error) throw error;
+
+      Alert.alert("Sukses", "Profile berhasil disimpan");
+      router.replace("/(app)/(tabs)/home");
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Gagal", e.message || "Gagal menyimpan profile");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <AppBackground>
@@ -55,15 +84,17 @@ export default function ProfileScreen() {
         <TextField
           label="Full Name"
           placeholder="Full Name"
-          value={fullName}
-          onChangeText={(t) => setValue("fullName", t, { shouldValidate: true })}
+          value={watch("fullName")}
+          onChangeText={(t) =>
+            setValue("fullName", t, { shouldValidate: true })
+          }
           error={errors.fullName?.message}
         />
 
         <TextField
           label="NIK"
           placeholder="NIK"
-          value={nik}
+          value={watch("nik")}
           onChangeText={(t) => setValue("nik", t, { shouldValidate: true })}
           keyboardType="number-pad"
           error={errors.nik?.message}
@@ -71,35 +102,50 @@ export default function ProfileScreen() {
 
         <TextField
           label="Birth Date"
-          placeholder="Birth Date"
-          value={birthDate}
-          onChangeText={(t) => setValue("birthDate", t, { shouldValidate: true })}
-          rightIcon={<Ionicons name="calendar-outline" size={22} color={colors.white70} />}
-          onRightIconPress={() => alert("Open date picker (todo)")}
+          placeholder="YYYY-MM-DD"
+          value={watch("birthDate")}
+          onChangeText={(t) =>
+            setValue("birthDate", t, { shouldValidate: true })
+          }
+          rightIcon={
+            <Ionicons
+              name="calendar-outline"
+              size={22}
+              color={colors.white70}
+            />
+          }
+          onRightIconPress={() =>
+            Alert.alert("Info", "Date picker belum diimplementasikan")
+          }
           error={errors.birthDate?.message}
         />
 
         <TextField
           label="Address"
           placeholder="Address"
-          value={address}
-          onChangeText={(t) => setValue("address", t, { shouldValidate: true })}
+          value={watch("address")}
+          onChangeText={(t) =>
+            setValue("address", t, { shouldValidate: true })
+          }
           error={errors.address?.message}
         />
+
         <Text style={styles.max}>Max 100 characters</Text>
 
         <View style={styles.actions}>
           <Pressable
-            onPress={() => {
-              setAuthToken(null);
-              router.replace("/(auth)/login");
-            }}
+            onPress={() => router.replace("/(app)/(tabs)/home")}
             style={styles.skipBtn}
           >
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
+
           <View style={{ flex: 1 }}>
-            <PrimaryButton title="Continue" onPress={handleSubmit(onSubmit)} loading={loading} />
+            <PrimaryButton
+              title="Continue"
+              loading={loading}
+              onPress={handleSubmit(onSubmit)}
+            />
           </View>
         </View>
       </View>
@@ -108,12 +154,41 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: 100 },
-  title: { ...type.h1, color: colors.white, textAlign: "center" },
-  sub: { color: colors.white70, marginTop: 8 },
-  section: { fontSize: 30, fontWeight: "800", color: colors.white, textAlign: "center", marginVertical: 18 },
-  max: { color: colors.white50, textAlign: "right", marginTop: -8, marginBottom: 12, fontStyle: "italic" },
-  actions: { flexDirection: "row", gap: 14, alignItems: "center", marginTop: 8 },
+  container: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 100,
+  },
+  title: {
+    ...type.h1,
+    color: colors.white,
+    textAlign: "center",
+  },
+  sub: {
+    color: colors.white70,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  section: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.white,
+    textAlign: "center",
+    marginVertical: 18,
+  },
+  max: {
+    color: colors.white50,
+    textAlign: "right",
+    marginTop: -8,
+    marginBottom: 12,
+    fontStyle: "italic",
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 14,
+    alignItems: "center",
+    marginTop: 8,
+  },
   skipBtn: {
     width: 140,
     height: 58,
@@ -122,5 +197,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  skipText: { color: colors.primary, fontSize: 20, fontWeight: "800" },
+  skipText: {
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: "800",
+  },
 });
