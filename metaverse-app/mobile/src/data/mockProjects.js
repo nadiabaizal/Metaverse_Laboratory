@@ -9,10 +9,10 @@ export const mockProjects = [
     description:
       "A virtual exhibition experience built to showcase SEAT 2025 in a fully immersive environment. Visitors can explore the exhibition layout, interact with curated content, and move through the space as if they were on-site.\n\nDesigned as a digital companion to the physical exhibition, this project makes the event more accessible for remote audiences and provides a memorable way to revisit the experience after the event.",
     images: [
-      "https://images.unsplash.com/photo-1526481280695-3c687fd643ed?auto=format&fit=crop&w=1600&q=70",
-      "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1600&q=70",
-      "https://images.unsplash.com/photo-1526481280690-7c9b2b4cd8b7?auto=format&fit=crop&w=1600&q=70",
-      "https://images.unsplash.com/photo-1520975958221-8e8f4b7a9e42?auto=format&fit=crop&w=1600&q=70",
+      "https://www.safran-group.com/sites/default/files/crops/16_9/public/node/2253292/2025-04/AIX-2025_rollup-web.png?itok=E9PGq6Rh",
+      "https://www.gauzy.com/wp-content/uploads/2023/09/Aircraft-Interiors-Expo-2023-Gauzy2.jpg",
+      "https://www.glasshouse.org.au/files/assets/glasshouse/v/1/gallery/exhibition-shots/take-a-seat/2025_take-a-seat_01.jpg",
+      "https://www.airline-suppliers.com/wp-content/uploads/2025/03/Bucher-class-divider-2.jpg",
     ],
     externalUrl:
       "https://www.spatial.io/s/Seat-In-Exhibition-2025-atAula-Timur-ITB-Metaverse-692703787a66fabaf2ad1a85?share=1032498670493367815",
@@ -54,7 +54,7 @@ export const mockProjects = [
     description:
       "A VR-first reconstruction initiative that reimagines historical spaces in interactive 3D. Users can explore reconstructed environments, engage with artifacts, and learn through contextual narratives.\n\nThe goal is to make heritage education more engaging and accessible, while preserving cultural value in a digital form.",
     images: [
-      "https://images.unsplash.com/photo-1526779259212-756e6e65c0a2?auto=format&fit=crop&w=1600&q=70",
+      "https://www.historytoday.com/sites/default/files/history-matters/archaeology.jpg",
       "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=1600&q=70",
       "https://images.unsplash.com/photo-1500534314209-a26db0f5d3b1?auto=format&fit=crop&w=1600&q=70",
       "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=70",
