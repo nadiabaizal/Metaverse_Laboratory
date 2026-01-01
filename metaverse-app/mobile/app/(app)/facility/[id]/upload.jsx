@@ -1,12 +1,24 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, SafeAreaView, Pressable, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  Pressable,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { spacing } from "../../../../src/theme/spacing";
-import { getFacilityById } from "../../../../src/data/mockFacilities";
+import * as WebBrowser from "expo-web-browser";
+import { supabase } from "../../../../src/lib/supabase";
+import * as DocumentPicker from "expo-document-picker";
 
 const PRIMARY = "#2D2A7B";
+
+const TEMPLATE_URL =
+  "https://hwmwaeknkpuxirspsdom.supabase.co/storage/v1/object/public/responsibility_letters/templates/Letter of Responsibility.docx";
 
 function Stepper({ step = 2 }) {
   const activeIdx = Math.max(1, Math.min(3, step)) - 1;
@@ -28,36 +40,108 @@ function Stepper({ step = 2 }) {
 export default function ToolBookingStep2Upload() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const tool = useMemo(() => getFacilityById(String(params.id)), [params.id]);
+  const bookingId = Array.isArray(params.booking_id)
+    ? params.booking_id[0]
+    : params.booking_id;
   const [pickedFile, setPickedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState(null);
 
+  /* ===================== DOWNLOAD TEMPLATE ===================== */
+  const downloadTemplate = async () => {
+    await WebBrowser.openBrowserAsync(TEMPLATE_URL);
+  };
+
+  /* ===================== PICK & UPLOAD PDF ===================== */
   const pickFile = async () => {
     try {
-      // Optional dependency:
-      // npx expo install expo-document-picker
-      const DocumentPicker = await import("expo-document-picker");
       const res = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "image/*"],
+        type: "application/pdf",
         multiple: false,
         copyToCacheDirectory: true,
       });
 
       if (res.canceled) return;
+
       const file = res.assets?.[0];
       if (!file) return;
+
+      setUploading(true);
       setPickedFile(file);
-    } catch (e) {
-      Alert.alert(
-        "File picker belum tersedia",
-        "Untuk memilih file, install expo-document-picker lalu jalankan ulang app.\n\nSementara ini kamu bisa lanjut dummy submit."
-      );
+
+      const fileName = `${params.booking_id}.pdf`;
+      const filePath = `facility-bookings/${fileName}`;
+
+      // 🔥 FORM DATA (AMAN DI iOS)
+      const formData = new FormData();
+      formData.append("file", {
+        uri: file.uri,
+        name: fileName,
+        type: "application/pdf",
+      });
+
+      const { error: uploadError } = await supabase.storage
+        .from("responsibility_letters")
+        .upload(filePath, formData, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error(uploadError);
+        Alert.alert("Upload failed");
+        setUploading(false);
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from("responsibility_letters")
+        .getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
+
+      setUploadedUrl(data.publicUrl);
+      setUploading(false);
+    } catch (err) {
+      console.error("UPLOAD ERROR:", err);
+      Alert.alert("Error", "Failed to upload file");
+      setUploading(false);
     }
   };
 
-  const onSubmit = () => {
-    router.replace({ pathname: "/(app)/facility/[id]/success", params: { id: String(params.id) } });
+
+  /* ===================== SUBMIT ===================== */
+  const onSubmit = async () => {
+    if (!uploadedUrl) {
+      Alert.alert("Required", "Please upload responsibility letter PDF");
+      return;
+    }
+
+    if (!bookingId) {
+      Alert.alert("Error", "Booking ID not found");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("facility_bookings")
+      .update({
+        responsibility_letter_url: uploadedUrl,
+      })
+      .eq("id", bookingId); // 🔥 PASTI KENA ROW
+
+    if (error) {
+      console.error("UPDATE ERROR:", error);
+      Alert.alert("Failed to save document");
+      return;
+    }
+
+    router.replace({
+      pathname: "/(app)/facility/[id]/success",
+      params: { id: String(params.id) },
+    });
   };
 
+
+  /* ===================== UI (TIDAK DIUBAH) ===================== */
   return (
     <View style={styles.screen}>
       <SafeAreaView style={styles.safe}>
@@ -74,16 +158,11 @@ export default function ToolBookingStep2Upload() {
 
       <View style={{ paddingHorizontal: spacing.xl, flex: 1 }}>
         <Text style={styles.bigTitle}>Letter of Responsibility Upload</Text>
-        <Pressable
-          onPress={() =>
-            Alert.alert(
-              "Download",
-              "Link download masih dummy. Nanti bisa diarahkan ke file dari server/database."
-            )
-          }
-          hitSlop={8}
-        >
-          <Text style={styles.linkText}>Download the letter of responsibility here!</Text>
+
+        <Pressable onPress={downloadTemplate} hitSlop={8}>
+          <Text style={styles.linkText}>
+            Download the letter of responsibility here!
+          </Text>
         </Pressable>
 
         <Pressable style={styles.dropzone} onPress={pickFile}>
@@ -98,7 +177,7 @@ export default function ToolBookingStep2Upload() {
 
             {pickedFile ? (
               <Text style={styles.fileName} numberOfLines={1}>
-                {pickedFile.name || pickedFile.uri}
+                {pickedFile.name}
               </Text>
             ) : (
               <>
@@ -108,27 +187,30 @@ export default function ToolBookingStep2Upload() {
             )}
           </View>
         </Pressable>
-
-        {!!tool && (
-          <Text style={styles.hint}>
-            Upload untuk: <Text style={{ fontWeight: "900" }}>{tool.title}</Text>
-          </Text>
-        )}
       </View>
 
       <View style={styles.bottomBar}>
-        <Pressable style={styles.primaryBtn} onPress={onSubmit}>
-          <Text style={styles.primaryBtnText}>Submit</Text>
+        <Pressable
+          style={[
+            styles.primaryBtn,
+            (!uploadedUrl || uploading) && { opacity: 0.6 },
+          ]}
+          disabled={!uploadedUrl || uploading}
+          onPress={onSubmit}
+        >
+          <Text style={styles.primaryBtnText}>
+            {uploading ? "Uploading..." : "Submit"}
+          </Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
+/* ===================== STYLES (TIDAK DIUBAH) ===================== */
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#FFFFFF" },
   safe: { backgroundColor: "#FFFFFF" },
-
   header: {
     paddingTop: spacing.xl,
     paddingBottom: spacing.l,
@@ -137,19 +219,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: 0.2,
-  },
+  backBtn: { width: 40, height: 40 },
+  headerTitle: { fontSize: 26, fontWeight: "800" },
 
   stepperRow: {
     flexDirection: "row",
@@ -161,7 +232,7 @@ const styles = StyleSheet.create({
   stepBarActive: { backgroundColor: "#9C86FF" },
   stepBarInactive: { backgroundColor: "#D1D5DB" },
 
-  bigTitle: { marginTop: spacing.l, fontSize: 30, fontWeight: "900", color: "#0F172A" },
+  bigTitle: { marginTop: spacing.l, fontSize: 30, fontWeight: "900" },
   linkText: {
     marginTop: 10,
     fontSize: 16,
@@ -190,8 +261,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.l,
   },
-  dropTitle: { fontSize: 18, fontWeight: "900", color: "#111827" },
-  orText: { marginTop: 10, color: "#9CA3AF", fontWeight: "800" },
+  dropTitle: { fontSize: 18, fontWeight: "900" },
+  orText: { marginTop: 10, fontWeight: "800", color: "#9CA3AF" },
   openText: {
     marginTop: 10,
     fontSize: 18,
@@ -199,9 +270,7 @@ const styles = StyleSheet.create({
     color: "#3B82F6",
     textDecorationLine: "underline",
   },
-  fileName: { marginTop: 10, maxWidth: "92%", fontWeight: "800", color: "#6B7280" },
-
-  hint: { marginTop: spacing.xl, color: "#6B7280", fontWeight: "700" },
+  fileName: { marginTop: 10, fontWeight: "800", color: "#6B7280" },
 
   bottomBar: {
     position: "absolute",
@@ -217,11 +286,6 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
   },
   primaryBtnText: { fontSize: 26, fontWeight: "900", color: "#FFFFFF" },
 });

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { spacing } from "../../../../src/theme/spacing";
-import { getFacilityById } from "../../../../src/data/mockFacilities";
+import { supabase } from "../../../../src/lib/supabase";
 
 const PRIMARY = "#2D2A7B";
 
@@ -49,24 +49,45 @@ function Radio({ label, active, onPress }) {
 export default function ToolBookingStep1() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const tool = useMemo(() => getFacilityById(String(id)), [id]);
-
-  const [name, setName] = useState("John Doe");
-  const [email, setEmail] = useState("*****@mahasiswa.itb.ac.id");
+  const [tool, setTool] = useState(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [studentNo, setStudentNo] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [campus, setCampus] = useState("ITB Ganesha");
 
-  const onContinue = () => {
+  const onContinue = async () => {
+    if (!name || !email || !studentNo || !whatsapp || !campus) {
+      alert("Please complete all fields");
+      return;
+    }
+
+    // 🔥 INSERT + AMBIL ID LANGSUNG
+    const { data, error } = await supabase
+      .from("facility_bookings")
+      .insert({
+        facility_id: id,
+        name,
+        email,
+        student_number: studentNo, // ⬅️ SESUAI NAMA KOLOM
+        whatsapp,
+        campus,
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      console.error("BOOKING INSERT ERROR:", error);
+      alert("Failed to submit booking");
+      return;
+    }
+
+    // ✅ LANGSUNG DAPAT booking_id
     router.push({
       pathname: "/(app)/facility/[id]/upload",
       params: {
         id: String(id),
-        name,
-        email,
-        studentNo,
-        whatsapp,
-        campus,
+        booking_id: data.id,
       },
     });
   };
