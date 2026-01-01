@@ -201,7 +201,9 @@ export default function EditProfileScreen() {
       .from("avatars")
       .upload(filePath, binary, {
         upsert: true,
-        contentType: `image/${fileExt}`,
+        contentType: "image/jpeg",
+        cacheControl: "3600",
+        contentDisposition: "inline",
       });
 
     if (uploadErr) {

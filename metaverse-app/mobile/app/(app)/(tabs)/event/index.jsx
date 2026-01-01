@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,41 +14,112 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
-import { MOCK_EVENTS } from "../../../../src/data/mockEvents";
+import { supabase } from "../../../../src/lib/supabase";
+
+import { useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 
 const FILTERS = [
   { key: "available", label: "Available" },
-  { key: "latest", label: "Latest Added" },
-  { key: "oldest", label: "Oldest Added" },
+  { key: "latest", label: "Latest" },
+  { key: "oldest", label: "Oldest" },
 ];
 
 export default function EventScreen() {
   const router = useRouter();
+
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("available");
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
 
+  /* ================= FETCH EVENTS ================= */
+  const loadEvents = async () => {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("events")
+      .select(`
+        id,
+        title,
+        location,
+        event_date,
+        event_start_time,
+        event_end_time,
+        seats_left,
+        status,
+        cover_image
+      `);
+
+    if (error) {
+      console.error("LOAD EVENTS ERROR:", error);
+    }
+
+    if (!error && data) {
+      const mapped = data.map((e) => ({
+        id: e.id,
+        title: e.title,
+        org: e.location,
+        images: [e.cover_image],
+        seatsLeft: e.seats_left,
+        status: e.status,
+        eventDate: e.event_date,
+        dateLabel: new Date(e.event_date).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        timeLabel:
+          e.event_start_time && e.event_end_time
+            ? `${e.event_start_time.slice(0,5)} - ${e.event_end_time.slice(0,5)}`
+            : "-",
+      }));
+
+      setEvents(mapped);
+    }
+
+    setLoading(false);
+  };
+
+  /* 🔥 REFRESH SETIAP KALI SCREEN AKTIF */
+  useFocusEffect(
+    useCallback(() => {
+      loadEvents();
+    }, [])
+  );
+
+  /* ================= FILTER + SEARCH ================= */
   const data = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let list = MOCK_EVENTS.filter((e) => {
-      if (!q) return true;
-      return (
+  const q = query.trim().toLowerCase();
+
+  // 1️⃣ hanya event AVAILABLE
+  let list = events.filter((e) => e.status === "available");
+
+  // 2️⃣ search
+  if (q) {
+    list = list.filter(
+      (e) =>
         e.title.toLowerCase().includes(q) ||
         e.org.toLowerCase().includes(q) ||
         e.dateLabel.toLowerCase().includes(q)
-      );
-    });
+    );
+  }
 
-    if (activeFilter === "available") {
-      list = list.slice().sort((a, b) => (b.seatsLeft ?? 0) - (a.seatsLeft ?? 0));
-    } else if (activeFilter === "latest") {
-      list = list.slice().reverse();
-    } else if (activeFilter === "oldest") {
-      list = list.slice();
-    }
+  // 3️⃣ sorting BERDASARKAN EVENT DATE
+  if (activeFilter === "latest") {
+    list = list.slice().sort(
+      (a, b) => new Date(b.eventDate) - new Date(a.eventDate)
+    );
+  } else if (activeFilter === "oldest") {
+    list = list.slice().sort(
+      (a, b) => new Date(a.eventDate) - new Date(b.eventDate)
+    );
+  }
 
-    return list;
-  }, [query, activeFilter]);
+  return list;
+}, [events, query, activeFilter]);
 
+  /* ================= NAV ================= */
   const openDetails = (item) => {
     router.push({ pathname: "/(app)/event/[id]", params: { id: item.id } });
   };
@@ -57,9 +128,9 @@ export default function EventScreen() {
     router.push({ pathname: "/(app)/event/[id]/register", params: { id: item.id } });
   };
 
+  /* ================= UI (UNCHANGED) ================= */
   return (
     <View style={styles.screen}>
-      {/* SafeArea hanya untuk header (biar sama dengan Organization & Project) */}
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
@@ -67,13 +138,10 @@ export default function EventScreen() {
           </Pressable>
 
           <Text style={styles.headerTitle}>Event</Text>
-
-          {/* spacer agar title center */}
           <View style={{ width: 40 }} />
         </View>
       </SafeAreaView>
 
-      {/* Konten di luar SafeArea */}
       <View style={styles.content}>
         {/* SEARCH */}
         <View style={styles.searchWrap}>
@@ -85,7 +153,6 @@ export default function EventScreen() {
               placeholder="Search Event..."
               placeholderTextColor="#9CA3AF"
               style={styles.searchInput}
-              returnKeyType="search"
             />
             {query.length > 0 && (
               <Pressable onPress={() => setQuery("")} hitSlop={10}>
@@ -106,7 +173,7 @@ export default function EventScreen() {
                   onPress={() => setActiveFilter(f.key)}
                   style={[styles.segItem, active && styles.segItemActive]}
                 >
-                  <Text style={[styles.segText, active && styles.segTextActive]} numberOfLines={1}>
+                  <Text style={[styles.segText, active && styles.segTextActive]}>
                     {f.label}
                   </Text>
                 </Pressable>
@@ -121,7 +188,7 @@ export default function EventScreen() {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
-            paddingHorizontal: spacing.xl, // ⬅️ konsisten sama page lain
+            paddingHorizontal: spacing.xl,
             paddingTop: spacing.l,
             paddingBottom: 120,
           }}
@@ -141,22 +208,20 @@ export default function EventScreen() {
                   <View style={styles.metaLeft}>
                     <View style={styles.metaItem}>
                       <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                      <Text style={styles.metaText} numberOfLines={1}>
-                        {item.dateLabel}
-                      </Text>
+                      <Text style={styles.metaText}>{item.dateLabel}</Text>
                     </View>
 
                     <View style={[styles.metaItem, { marginTop: 10 }]}>
                       <Ionicons name="time-outline" size={18} color={colors.primary} />
-                      <Text style={styles.metaText} numberOfLines={1}>
-                        {item.timeLabel}
-                      </Text>
+                      <Text style={styles.metaText}>{item.timeLabel}</Text>
                     </View>
                   </View>
 
                   <View style={styles.seatPill}>
                     <View style={styles.seatDot} />
-                    <Text style={styles.seatText}>{item.seatsLeft} seats left</Text>
+                    <Text style={styles.seatText}>
+                      {item.seatsLeft} seats left
+                    </Text>
                   </View>
                 </View>
 
@@ -165,8 +230,24 @@ export default function EventScreen() {
                     <Text style={styles.btnOutlineText}>Details</Text>
                   </Pressable>
 
-                  <Pressable style={styles.btnPrimary} onPress={() => openRegister(item)}>
-                    <Text style={styles.btnPrimaryText}>Register Now</Text>
+                  <Pressable
+                    style={[
+                      styles.btnPrimary,
+                      item.seatsLeft <= 0 && styles.btnPrimaryDisabled,
+                    ]}
+                    onPress={() => {
+                      if (item.seatsLeft > 0) openRegister(item);
+                    }}
+                    disabled={item.seatsLeft <= 0}
+                  >
+                    <Text
+                      style={[
+                        styles.btnPrimaryText,
+                        item.seatsLeft <= 0 && styles.btnPrimaryTextDisabled,
+                      ]}
+                    >
+                      {item.seatsLeft > 0 ? "Register Now" : "Unavailable"}
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -175,9 +256,13 @@ export default function EventScreen() {
           ListEmptyComponent={
             <View style={{ paddingTop: 40, alignItems: "center" }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: "#111827" }}>
-                No events found
+                {loading ? "Loading events..." : "No events found"}
               </Text>
-              <Text style={{ marginTop: 6, color: "#6B7280" }}>Try a different keyword.</Text>
+              {!loading && (
+                <Text style={{ marginTop: 6, color: "#6B7280" }}>
+                  Try a different keyword.
+                </Text>
+              )}
             </View>
           }
         />
@@ -186,12 +271,11 @@ export default function EventScreen() {
   );
 }
 
+/* ================= STYLES (UNCHANGED) ================= */
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#FFFFFF" },
   safe: { backgroundColor: "#FFFFFF" },
   content: { flex: 1, backgroundColor: "#FFFFFF" },
-
-  // ✅ STANDARD HEADER (SAMA DENGAN ORGANIZATION & PROJECT)
   header: {
     paddingTop: spacing.xl,
     paddingBottom: spacing.l,
@@ -199,7 +283,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
   },
   backBtn: {
     width: 40,
@@ -208,14 +291,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: 0.2,
-  },
-
-  // SEARCH
+  headerTitle: { fontSize: 26, fontWeight: "800", color: "#111827" },
   searchWrap: { paddingHorizontal: spacing.xl },
   searchBox: {
     height: 54,
@@ -227,8 +303,6 @@ const styles = StyleSheet.create({
     gap: spacing.m,
   },
   searchInput: { flex: 1, fontSize: 16, color: "#111827" },
-
-  // SEGMENT
   segmentOuter: { paddingHorizontal: spacing.xl, paddingTop: spacing.l },
   segment: {
     flexDirection: "row",
@@ -247,8 +321,6 @@ const styles = StyleSheet.create({
   segItemActive: { backgroundColor: "#2D2A7B" },
   segText: { fontSize: 14, fontWeight: "800", color: "#9CA3AF" },
   segTextActive: { color: "#FFFFFF" },
-
-  // CARD
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
@@ -264,15 +336,12 @@ const styles = StyleSheet.create({
   },
   cardImg: { width: "100%", height: 170 },
   cardBody: { padding: spacing.l },
-
   cardTitle: { fontSize: 22, fontWeight: "900", color: "#0F172A" },
   cardOrg: { marginTop: 6, fontSize: 15, fontWeight: "700", color: "#111827", opacity: 0.75 },
-
-  metaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.l, gap: spacing.m },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.l },
   metaLeft: { flex: 1 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 10 },
-  metaText: { fontSize: 15, fontWeight: "700", color: "#111827", flexShrink: 1 },
-
+  metaText: { fontSize: 15, fontWeight: "700", color: "#111827" },
   seatPill: {
     alignSelf: "flex-end",
     flexDirection: "row",
@@ -285,7 +354,6 @@ const styles = StyleSheet.create({
   },
   seatDot: { width: 10, height: 10, borderRadius: 10, backgroundColor: "#2D2A7B" },
   seatText: { fontSize: 14, fontWeight: "900", color: "#2D2A7B" },
-
   btnRow: { flexDirection: "row", gap: spacing.m, marginTop: spacing.xl },
   btnOutline: {
     flex: 1,
@@ -305,5 +373,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  btnPrimaryText: { fontSize: 16, fontWeight: "900", color: "#FFFFFF" },
+  btnPrimaryText: { 
+    fontSize: 16, fontWeight: "900", color: "#FFFFFF" 
+  },
+  btnPrimaryDisabled: {
+    backgroundColor: "#9CA3AF",
+  },
+  btnPrimaryTextDisabled: {
+    color: "#F3F4F6",
+  },
 });
