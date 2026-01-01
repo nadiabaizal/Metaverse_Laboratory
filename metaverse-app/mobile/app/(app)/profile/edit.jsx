@@ -11,22 +11,24 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
-import { api } from "../../../src/lib/api";
+import * as ImagePicker from "expo-image-picker";
+import { supabase } from "../../../src/lib/supabase";
 import { colors } from "../../../src/theme/colors";
 import { spacing } from "../../../src/theme/spacing";
 
-function getInitials(fullNameOrEmail) {
-  if (!fullNameOrEmail) return "U";
-  const s = String(fullNameOrEmail).trim();
-  if (!s) return "U";
+/* ================= utils ================= */
+function getInitials(v) {
+  if (!v) return "U";
+  const s = String(v).trim();
   if (s.includes("@")) return s.slice(0, 2).toUpperCase();
-  const parts = s.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  const p = s.split(/\s+/);
+  return p.length === 1
+    ? p[0].slice(0, 2).toUpperCase()
+    : (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
 function Field({
@@ -42,34 +44,32 @@ function Field({
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.label}>{label}</Text>
-
-      <View style={[styles.inputRow, !editable && { opacity: 0.7 }]}>
+      <View style={[styles.inputRow, !editable && { opacity: 0.6 }]}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
           style={styles.input}
+          placeholderTextColor="#9CA3AF"
           keyboardType={keyboardType}
           editable={editable}
         />
-
-        {rightIcon ? (
-          <Pressable onPress={onPressRight} hitSlop={10} style={styles.rightIconBtn}>
+        {rightIcon && (
+          <Pressable onPress={onPressRight} style={styles.rightIconBtn}>
             <Ionicons name={rightIcon} size={22} color="#9CA3AF" />
           </Pressable>
-        ) : null}
+        )}
       </View>
     </View>
   );
 }
 
+/* ================= screen ================= */
 export default function EditProfileScreen() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [me, setMe] = useState(null);
 
   const [nik, setNik] = useState("");
   const [name, setName] = useState("");
@@ -77,175 +77,196 @@ export default function EditProfileScreen() {
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [address, setAddress] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(null);
 
-  // ✅ fetch profile
+  /* ========= LOAD PROFILE ========= */
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       setLoading(true);
       try {
-        const res = await api.get("/me");
-        const user = res.data?.user || null;
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth?.user) throw new Error("Session expired");
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select(
+            "nik,name,email,phone_num,birth_date,address,avatar_url"
+          )
+          .eq("id", auth.user.id)
+          .single();
+
+        if (error) throw error;
         if (!mounted) return;
 
-        setMe(user);
-
-        const p = user?.profile || {};
-        setNik(p?.nik ? String(p.nik) : "");
-        setName(p?.fullName || p?.name || "");
-        setEmail(user?.email || "");
-        setPhone(p?.phoneNumber || p?.phone || "");
-        setBirthDate(p?.birthDate || "");
-        setAddress(p?.address || "");
+        setNik(data?.nik ?? "");
+        setName(data?.name ?? "");
+        setEmail(data?.email ?? auth.user.email ?? "");
+        setPhone(data?.phone_num ?? "");
+        setBirthDate(data?.birth_date ?? "");
+        setAddress(data?.address ?? "");
+        setAvatarUrl(data?.avatar_url ?? null);
       } catch (e) {
-        console.log("GET /me failed:", e?.response?.status, e?.message);
-
-        // 🔐 session habis → login ulang
-        if (e?.response?.status === 401) {
-          Alert.alert("Session expired", "Silakan login kembali.");
-          router.replace("/(auth)/login");
-        }
+        Alert.alert("Error", "Gagal memuat profile");
+        router.replace("/(auth)/login");
       } finally {
-        if (mounted) setLoading(false);
+        mounted && setLoading(false);
       }
     })();
 
-    return () => {
-      mounted = false;
-    };
+    return () => (mounted = false);
   }, []);
 
   const initials = useMemo(() => getInitials(name || email), [name, email]);
 
-  const onPickBirthDate = () => {
-      Alert.alert("Info", "Date picker belum diimplementasikan");
-    };
-
+  /* ========= SAVE PROFILE ========= */
   const onSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Validation", "Name tidak boleh kosong.");
+      Alert.alert("Validasi", "Nama wajib diisi");
       return;
     }
 
     setSaving(true);
     try {
-      const payload = {
-        nik,
-        fullName: name,
-        phoneNumber: phone,
-        birthDate,
-        address,
-      };
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth?.user) throw new Error("Session expired");
 
-      await api.post("/me/profile", payload);
+      const { error } = await supabase.from("profiles").upsert(
+        {
+          id: auth.user.id,
+          nik,
+          name,
+          email,
+          phone_num: phone,
+          birth_date: birthDate || null,
+          address,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
 
-      Alert.alert("Success", "Profile berhasil disimpan.");
-      router.back();
+      if (error) throw error;
+
+      Alert.alert("Success", "Profile berhasil disimpan", {
+        onPress: () => router.back(),
+      });
     } catch (e) {
-      console.log("POST /me/profile failed:", e?.response?.status, e?.response?.data || e?.message);
-      Alert.alert("Error", "Gagal menyimpan profile. Coba lagi ya.");
+      Alert.alert("Error", "Gagal menyimpan profile");
     } finally {
       setSaving(false);
     }
   };
 
+  /* ========= CHANGE AVATAR ========= */
+  const onChangePhoto = async () => {
+  try {
+    // 1. Permission
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission dibutuhkan", "Akses galeri diperlukan");
+      return;
+    }
+
+    // 2. PICK IMAGE (TANPA mediaTypes)
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      quality: 0.8,
+      base64: true,
+    });
+
+    // support SDK lama & baru
+    if (result.cancelled || result.canceled) return;
+
+    const asset = result.assets ? result.assets[0] : result;
+    if (!asset?.base64) {
+      Alert.alert("Error", "Gagal membaca file gambar");
+      return;
+    }
+
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth?.user) return;
+
+    const fileExt = asset.uri.split(".").pop() || "jpg";
+    const filePath = `${auth.user.id}.${fileExt}`;
+
+    // 3. base64 → Uint8Array (ANTI 0 BYTE)
+    const binary = Uint8Array.from(
+      atob(asset.base64),
+      (c) => c.charCodeAt(0)
+    );
+
+    // 4. Upload ke Supabase Storage
+    const { error: uploadErr } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, binary, {
+        upsert: true,
+        contentType: `image/${fileExt}`,
+      });
+
+    if (uploadErr) {
+      Alert.alert("Upload gagal", uploadErr.message);
+      return;
+    }
+
+    // 5. Public URL
+    const { data } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    // 6. Simpan ke table profiles
+    await supabase
+      .from("profiles")
+      .update({ avatar_url: data.publicUrl })
+      .eq("id", auth.user.id);
+
+    // 7. Refresh avatar
+    setAvatarUrl(data.publicUrl + "?t=" + Date.now());
+  } catch (e) {
+    console.log("CHANGE PHOTO ERROR:", e);
+    Alert.alert("Error", "Terjadi kesalahan saat ganti foto");
+  }
+};
+
+  /* ================= UI ================= */
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Header */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={26} color="#111827" />
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={26} />
           </Pressable>
           <Text style={styles.headerTitle}>Edit Profile</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Avatar */}
+        <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.avatarSection}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{initials}</Text>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+              ) : (
+                <Text style={styles.avatarText}>{initials}</Text>
+              )}
             </View>
-
-            <Pressable onPress={() => Alert.alert("Todo", "Change photo belum dibuat")} hitSlop={10}>
+            <Pressable onPress={onChangePhoto}>
               <Text style={styles.changePhoto}>Change Profile Photo</Text>
             </Pressable>
           </View>
 
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator />
-              <Text style={styles.loadingText}>Loading data...</Text>
-            </View>
-          ) : null}
+          {loading && <ActivityIndicator />}
 
-          {/* Form */}
-          <Field label="NIK" value={nik} onChangeText={setNik} placeholder="NIK" keyboardType="number-pad" />
-          <Field label="Name" value={name} onChangeText={setName} placeholder="Name" />
-
-          {/* Email biasanya dari auth -> opsional: read-only supaya aman */}
-          <Field
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            keyboardType="email-address"
-            editable={false}
-          />
-
-          <Field
-            label="Phone Number"
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="+62XX-XXXX-XXXX"
-            keyboardType="phone-pad"
-          />
-
-          <Field
-            label="Birth Date"
-            value={birthDate}
-            onChangeText={setBirthDate}
-            placeholder="Birth Date"
-            rightIcon="calendar-outline"
-            onPressRight={onPickBirthDate}
-          />
-
-          <View style={styles.fieldWrap}>
-            <Text style={styles.label}>Alamat Lengkap</Text>
-            <TextInput
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Alamat"
-              placeholderTextColor="#9CA3AF"
-              style={[styles.input, styles.textArea]}
-              multiline
-            />
-          </View>
-
-          <View style={{ height: 110 }} />
+          <Field label="NIK" value={nik} onChangeText={setNik} />
+          <Field label="Name" value={name} onChangeText={setName} />
+          <Field label="Email" value={email} editable={false} />
+          <Field label="Phone Number" value={phone} onChangeText={setPhone} />
+          <Field label="Birth Date" value={birthDate} onChangeText={setBirthDate} />
+          <Field label="Alamat Lengkap" value={address} onChangeText={setAddress} />
         </ScrollView>
 
-        {/* Save button fixed bottom */}
         <View style={styles.saveBar}>
-          <Pressable
-            style={[styles.saveBtn, saving && { opacity: 0.7 }]}
-            onPress={onSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveText}>Simpan</Text>
-            )}
+          <Pressable style={styles.saveBtn} onPress={onSave} disabled={saving}>
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Simpan</Text>}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -253,31 +274,20 @@ export default function EditProfileScreen() {
   );
 }
 
+/* ================= styles ================= */
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFFFFF" },
-
+  safe: { flex: 1, backgroundColor: "#fff" },
   header: {
     paddingHorizontal: spacing.xl,
-    paddingTop: 10,
-    paddingBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  backBtn: { width: 40, height: 40, alignItems: "flex-start", justifyContent: "center" },
-  headerTitle: { fontSize: 28, fontWeight: "900", color: "#111827" },
+  backBtn: { width: 40, height: 40, justifyContent: "center" },
+  headerTitle: { fontSize: 28, fontWeight: "900" },
 
-  scroll: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 20,
-  },
-
-  avatarSection: {
-    alignItems: "center",
-    marginTop: 10,
-    marginBottom: 18,
-    gap: 14,
-  },
+  scroll: { paddingHorizontal: spacing.xl },
+  avatarSection: { alignItems: "center", marginVertical: 16 },
   avatarCircle: {
     width: 110,
     height: 110,
@@ -286,73 +296,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: 34,
-    fontWeight: "900",
-    color: colors.primaryDark,
-  },
-  changePhoto: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: colors.primaryDark,
-  },
+  avatarImg: { width: "100%", height: "100%", borderRadius: 55 },
+  avatarText: { fontSize: 34, fontWeight: "900", color: colors.primaryDark },
+  changePhoto: { marginTop: 12, fontSize: 18, fontWeight: "800", color: colors.primaryDark },
 
-  loadingBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 6,
-  },
-  loadingText: { fontSize: 14, fontWeight: "700", color: "#9CA3AF" },
-
-  fieldWrap: {
-    marginTop: 14,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 8,
-  },
-
+  fieldWrap: { marginTop: 14 },
+  label: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
   inputRow: {
     flexDirection: "row",
-    alignItems: "center",
     borderWidth: 2,
     borderColor: "#9CA3AF",
     borderRadius: 6,
     paddingHorizontal: 14,
     height: 58,
   },
-  input: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  rightIconBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  input: { flex: 1, fontSize: 18 },
+  rightIconBtn: { width: 44, justifyContent: "center", alignItems: "center" },
+  textArea: { minHeight: 90, textAlignVertical: "top" },
 
-  textArea: {
-    borderWidth: 2,
-    borderColor: "#9CA3AF",
-    borderRadius: 6,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    minHeight: 90,
-    textAlignVertical: "top",
-  },
-
-  saveBar: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 18,
-    paddingTop: 10,
-    backgroundColor: "#FFFFFF",
-  },
+  saveBar: { padding: spacing.xl },
   saveBtn: {
     height: 70,
     borderRadius: 14,
@@ -360,9 +322,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  saveText: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#FFFFFF",
-  },
+  saveText: { fontSize: 26, fontWeight: "900", color: "#fff" },
 });

@@ -86,8 +86,8 @@ export default function ProfileScreen() {
         id: user.id,
         email: user.email,
         profile: {
-          fullName: profileRow?.name || metaName || "",
-          avatarUrl: profileRow?.avatar_url || null,
+          fullName: profileRow?.name ?? "",
+          avatarUrl: profileRow?.avatar_url ?? null,
         },
       });
     } catch (e) {
