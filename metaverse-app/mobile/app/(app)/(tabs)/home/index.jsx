@@ -19,98 +19,60 @@ import { supabase } from "../../../../src/lib/supabase";
 
 const roga = require("../../../../assets/images/roga.png");
 
-// Dummy images (boleh diganti dengan asset lokal kamu)
-const demoEventImg = {
-  uri: "https://images.unsplash.com/photo-1522199710521-72d69614c702?auto=format&fit=crop&w=900&q=60",
-};
-const demoToolImg = {
-  uri: "https://images.unsplash.com/photo-1587573578277-8d80a382440e?auto=format&fit=crop&w=900&q=60",
-};
-
-function getInitials(fullNameOrEmail) {
-  if (!fullNameOrEmail) return "U";
-  const s = String(fullNameOrEmail).trim();
-  if (!s) return "U";
-  if (s.includes("@")) return s.slice(0, 2).toUpperCase();
-  const parts = s.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+/* ================= UTIL ================= */
+function getInitials(v) {
+  if (!v) return "U";
+  if (v.includes("@")) return v.slice(0, 2).toUpperCase();
+  const p = v.split(" ");
+  return p.length === 1
+    ? p[0].slice(0, 2).toUpperCase()
+    : (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
-function SectionHeader({ title, onSeeMore }) {
-  return (
-    <View style={styles.sectionHeaderRow}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <Pressable onPress={onSeeMore} hitSlop={10}>
-        <Text style={styles.seeMore}>See More</Text>
-      </Pressable>
-    </View>
-  );
+function formatDate(dateStr) {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
-function PillButton({ label, onPress, variant = "outline" }) {
-  const isSolid = variant === "solid";
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.pillBtn, isSolid ? styles.pillSolid : styles.pillOutline]}
-    >
-      <Text style={[styles.pillText, isSolid ? styles.pillTextSolid : styles.pillTextOutline]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function IconCircle({ name }) {
-  return (
-    <View style={styles.iconCircle}>
-      <Ionicons name={name} size={26} color={colors.primaryDark} />
-    </View>
-  );
-}
-
+/* ================= MAIN ================= */
 export default function HomeScreen() {
   const router = useRouter();
 
-  // kita bikin struktur "me" selaras sama yang kamu pakai sebelumnya
-  // me = { email, profileCompleted, profile: { fullName, nik, birthDate, address } }
   const [me, setMe] = useState(null);
   const [loadingMe, setLoadingMe] = useState(false);
 
+  const [event, setEvent] = useState(null);
+  const [tool, setTool] = useState(null);
+  const [organization, setOrganization] = useState(null);
+  const [projects, setProjects] = useState([]);
+
+  /* ---------- LOAD USER ---------- */
   const loadMe = async () => {
     setLoadingMe(true);
     try {
-      // 1) ambil user supabase yang sedang login
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (authErr) throw authErr;
-
-      const user = authData?.user;
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
       if (!user) {
         setMe(null);
         return;
       }
 
-      // 2) ambil profile dari table "profiles" (yang kamu isi di (auth)/data.jsx)
-      const { data: profileRow, error: pErr } = await supabase
+      const { data: profile } = await supabase
         .from("profiles")
         .select("name, nik, birth_date, address")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (pErr) throw pErr;
-
-      const profile = profileRow
-        ? {
-            fullName: profileRow.name || "",
-            nik: profileRow.nik || "",
-            birthDate: profileRow.birth_date || "",
-            address: profileRow.address || "",
-          }
-        : null;
-
       const profileCompleted =
-        !!profile?.fullName && !!profile?.nik && !!profile?.birthDate && !!profile?.address;
+        !!profile?.name &&
+        !!profile?.nik &&
+        !!profile?.birth_date &&
+        !!profile?.address;
 
       setMe({
         email: user.email,
@@ -118,23 +80,64 @@ export default function HomeScreen() {
         profile,
       });
     } catch (e) {
-      console.log("HOME loadMe error:", e?.message);
-      setMe(null);
+      console.log("loadMe error:", e.message);
     } finally {
       setLoadingMe(false);
     }
   };
 
+  /* ---------- LOAD HOME DATA ---------- */
+  const loadHomeData = async () => {
+    try {
+      const { data: e } = await supabase
+        .from("events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setEvent(e || null);
+
+      const { data: f } = await supabase
+        .from("facilities")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setTool(f || null);
+
+      const { data: o } = await supabase
+        .from("organizations")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setOrganization(o || null);
+
+      const { data: p } = await supabase
+        .from("projects")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setProjects(o || null);
+
+    } catch (e) {
+      console.log("loadHomeData error:", e.message);
+    }
+  };
+
   useEffect(() => {
     loadMe();
+    loadHomeData();
   }, []);
 
   const displayName = useMemo(() => {
-    const p = me?.profile || {};
-    if (p.fullName) return p.fullName;
+    if (me?.profile?.name) return me.profile.name;
     if (me?.email) return me.email;
     return "Username";
   }, [me]);
+
+  const initials = useMemo(() => getInitials(displayName), [displayName]);
 
   const profileStatus = useMemo(() => {
     if (loadingMe) return "Loading...";
@@ -142,191 +145,141 @@ export default function HomeScreen() {
     return me.profileCompleted ? "Profile completed" : "Complete your profile";
   }, [me, loadingMe]);
 
-  const initials = useMemo(() => getInitials(displayName), [displayName]);
-
-  // Tetap pakai featured dummy card (UI kamu tetap sama)
-  const featuredEvent = {
-    title: "Virtual Reality (VR)\nDevelopment Workshop",
-    author: "Bernard Marr",
-    date: "Monday, 29th December 2025",
-    time: "11:00 AM",
-    image: demoEventImg,
-  };
-
-  const featuredTool = {
-    title: "Haptic Gloves",
-    qty: 2,
-    desc: "Feel the virtual world with high-fidelity tactile\nfeedback for your hands.",
-    image: demoToolImg,
-  };
-
-  const featuredProject = {
-    badge: "Seat.In Exhibition 2025",
-    text:
-      "ITB Metaverse ITB East Hall is a collaborative work of 4 F/S: FSRD ITB, STEI ITB, FITB ITB, SAPPK ITB.",
-    image: {
-      uri: "https://images.unsplash.com/photo-1618005198919-d3d4b5a92eee?auto=format&fit=crop&w=900&q=60",
-    },
-  };
-
-  const teamMember = {
-    name: "Nadia Apsarini Baizal",
-    role: "Laboratory Director",
-    dept: "Sistem dan Teknologi Informasi",
-    year: "2024/2025",
-    avatar: {
-      uri: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=256&q=60",
-    },
-  };
-
+  /* ================= RENDER ================= */
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
-
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Top header */}
+        {/* HEADER */}
         <View style={styles.topRow}>
           <Pressable style={styles.profileLeft} onPress={() => router.push("/(app)/profile")}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.username} numberOfLines={1}>
-                {displayName}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={styles.status} numberOfLines={1}>
-                  {profileStatus}
-                </Text>
-                {loadingMe ? <ActivityIndicator size="small" /> : null}
-              </View>
+            <View>
+              <Text style={styles.username}>{displayName}</Text>
+              <Text style={styles.status}>{profileStatus}</Text>
             </View>
+          </Pressable>
+
+          <Pressable onPress={() => router.push("/(app)/notification")}>
+            <Ionicons name="notifications-outline" size={26} />
+          </Pressable>
+        </View>
+
+        {/* ROGA */}
+        <View style={styles.rogaTopRow}>
+          <Image source={roga} style={styles.roga2} />
+          <Text style={styles.rogaGreeting2}>
+            Hello, I’m Roga.{"\n"}How can I help you?
+          </Text>
+        </View>
+
+        {/* QUICK ACTION */}
+        <View style={styles.quickCardsRow2}>
+          <Pressable 
+            style={styles.quickCard2} 
+            onPress={() => router.push("/(app)/(tabs)/facility")}
+          >
+            <Ionicons name="construct-outline" size={26} color={colors.primaryDark} />
+            <Text style={styles.quickText2}>Tool’s{"\n"}Booking</Text>
+          </Pressable>
+
+          <Pressable 
+            style={styles.quickCard2} 
+            onPress={() => router.push("/(app)/(tabs)/event")}
+            >
+            <Ionicons name="easel-outline" size={26} color={colors.primaryDark} />
+            <Text style={styles.quickText2}>Event{"\n"}Registration</Text>
           </Pressable>
 
           <Pressable
-            onPress={() => router.push("/(app)/notification")}
-            style={styles.notifBtn}
-            hitSlop={10}
+            style={styles.quickCard2}
+            onPress={() => router.push("/(app)/(tabs)/project")}
           >
-            <Ionicons name="notifications-outline" size={26} color="#111827" />
+            <Ionicons name="briefcase-outline" size={26} color={colors.primaryDark} />
+            <Text style={styles.quickText2}>Our Project</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.quickCard2}
+            onPress={() => router.push("/(app)/(tabs)/organization")}
+          >
+            <Ionicons name="people-outline" size={26} color={colors.primaryDark} />
+            <Text style={styles.quickText2}>Our People</Text>
           </Pressable>
         </View>
 
-        {/* Quick actions */}
-        <View style={styles.quickWrap}>
-          <View style={styles.rogaTopRow}>
-            <View style={styles.rogaWrap2}>
-              <Image source={roga} style={styles.roga2} resizeMode="contain" />
+        {/* EVENT */}
+        {event && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Join the Event!</Text>
+              <Pressable onPress={() => router.push("/(app)/(tabs)/event")}>
+                <Text style={styles.seeMore}>See More</Text>
+              </Pressable>
             </View>
 
-            <View style={styles.greetingRight}>
-              <Text style={styles.rogaGreeting2}>
-                Hello, I’m Roga.{"\n"}How can I help you?
-              </Text>
-            </View>
-          </View>
+            <View style={styles.cardLarge}>
+              <View style={styles.cardTopRow}>
+                <Image source={{ uri: event.cover_image }} style={styles.cardThumb} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>{event.title}</Text>
+                  <Text style={styles.cardSub}>{event.location}</Text>
 
-          <View style={styles.quickCardsRow2}>
-            <Pressable style={styles.quickCard2} onPress={() => router.push("/(app)/(tabs)/facility")}>
-              <IconCircle name="construct-outline" />
-              <Text style={styles.quickText2} numberOfLines={2} ellipsizeMode="tail">
-                Tool’s{"\n"}Booking
-              </Text>
-            </Pressable>
+                  <View style={styles.pillRow}>
+                    <Pressable onPress={() => router.push(`/(app)/event/${event.id}`)}>
+                      <Text style={styles.seeMore}>Details</Text>
+                    </Pressable>
+                    <Pressable onPress={() => router.push(`/(app)/event/${event.id}/register`)}>
+                      <Text style={styles.seeMore}>Register Now</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
 
-            <Pressable style={styles.quickCard2} onPress={() => router.push("/(app)/(tabs)/event")}>
-              <IconCircle name="easel-outline" />
-              <Text style={styles.quickText2} numberOfLines={2} ellipsizeMode="tail">
-                Event{"\n"}Registration
-              </Text>
-            </Pressable>
-
-            <Pressable style={styles.quickCard2} onPress={() => router.push("/(app)/(tabs)/project")}>
-              <IconCircle name="hardware-chip-outline" />
-              <Text style={styles.quickText2} numberOfLines={2} ellipsizeMode="tail">
-                Metaverse’s{"\n"}Project
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Events */}
-        <SectionHeader title="Join the Event!" onSeeMore={() => router.push("/(app)/(tabs)/event")} />
-
-        <View style={styles.cardLarge}>
-          <View style={styles.cardTopRow}>
-            <Image source={featuredEvent.image} style={styles.cardThumb} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{featuredEvent.title}</Text>
-              <Text style={styles.cardSub}>{featuredEvent.author}</Text>
-
-              <View style={styles.pillRow}>
-                <PillButton label="Details" onPress={() => alert("Event details (todo)")} />
-                <PillButton label="Register Now" variant="outline" onPress={() => alert("Register event (todo)")} />
+              <View style={styles.infoBar}>
+                <Text>{formatDate(event.event_date)}</Text>
+                <Text>{event.event_start_time}</Text>
               </View>
             </View>
-          </View>
+          </>
+        )}
 
-          <View style={styles.infoBar}>
-            <View style={styles.infoItem}>
-              <Ionicons name="calendar-outline" size={18} color="#0F172A" />
-              <Text style={styles.infoText}>{featuredEvent.date}</Text>
+        {/* TOOL */}
+        {tool && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Available Tools</Text>
+              <Pressable onPress={() => router.push("/(app)/(tabs)/facility")}>
+                <Text style={styles.seeMore}>See More</Text>
+              </Pressable>
             </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="time-outline" size={18} color="#0F172A" />
-              <Text style={styles.infoText}>{featuredEvent.time}</Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Tools */}
-        <SectionHeader title="Available Tools" onSeeMore={() => router.push("/(app)/(tabs)/facility")} />
-        <View style={styles.cardLarge}>
-          <View style={styles.cardTopRow}>
-            <Image source={featuredTool.image} style={styles.cardThumb} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitleSingle}>{featuredTool.title}</Text>
-              <Text style={styles.cardSub}>Quantity : {featuredTool.qty}</Text>
+            <View style={styles.cardLarge}>
+              <View style={styles.cardTopRow}>
+                <Image source={{ uri: tool.cover_image }} style={styles.cardThumb} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitleSingle}>{tool.name}</Text>
+                  <Text style={styles.cardSub}>Quantity : {tool.stock}</Text>
 
-              <View style={styles.pillRow}>
-                <PillButton label="Details" onPress={() => alert("Tool details (todo)")} />
-                <PillButton label="Book Now" onPress={() => alert("Booking tool (todo)")} />
+                  <View style={styles.pillRow}>
+                    <Pressable onPress={() => router.push(`/(app)/facility/${tool.id}`)}>
+                      <Text style={styles.seeMore}>Details</Text>
+                    </Pressable>
+                    <Pressable onPress={() => router.push(`/(app)/facility/${tool.id}/booking`)}>
+                      <Text style={styles.seeMore}>Book Now</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.noteBox}>
+                <Text style={styles.noteText}>{tool.description}</Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.noteBox}>
-            <Text style={styles.noteText}>{featuredTool.desc}</Text>
-          </View>
-        </View>
-
-        {/* Project */}
-        <SectionHeader title="Check Out Our Project!" onSeeMore={() => router.push("/(app)/(tabs)/project")} />
-        <View style={styles.cardLarge}>
-          <View style={styles.projectRow}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={styles.badge}>{featuredProject.badge}</Text>
-              <Text style={styles.projectText}>{featuredProject.text}</Text>
-            </View>
-            <Image source={featuredProject.image} style={styles.projectImg} />
-          </View>
-        </View>
-
-        {/* Organization / Team */}
-        <SectionHeader title="Meet Our Team!" onSeeMore={() => router.push("/(app)/(tabs)/organization")} />
-        <Pressable style={styles.teamCard} onPress={() => alert("Open member profile / chat (todo)")}>
-          <Image source={teamMember.avatar} style={styles.teamAvatar} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.teamName}>{teamMember.name}</Text>
-            <Text style={styles.teamSub}>{teamMember.dept}</Text>
-            <Text style={styles.teamSub}>{teamMember.year}</Text>
-            <View style={styles.rolePill}>
-              <Text style={styles.rolePillText}>{teamMember.role}</Text>
-            </View>
-          </View>
-        </Pressable>
-
-        <View style={{ height: 24 }} />
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -398,10 +351,10 @@ const styles = StyleSheet.create({
   },
   quickText2: {
     textAlign: "center",
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 10.5,
+    lineHeight: 15,
     fontWeight: "500",
-    color: "rgba(15,23,42,0.55)",
+    color: "rgba(9, 14, 26, 0.55)",
   },
 
   sectionHeaderRow: {
