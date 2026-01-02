@@ -29,51 +29,64 @@ export default function EventRegisterScreen() {
   const [touchedSubmit, setTouchedSubmit] = useState(false);
 
   const isFormComplete =
-    name.trim().length > 0 &&
-    email.trim().length > 0 &&
-    phone.trim().length > 0 &&
-    guests.trim().length > 0;
+    name.trim() &&
+    email.trim() &&
+    phone.trim() &&
+    guests.trim();
 
   const isEmailValid = /.+@.+\..+/.test(email.trim());
-  const isGuestsValid = /^\d+$/.test(guests.trim());
+  const isGuestsValid = Number(guests) > 0;
   const isFormValid = isFormComplete && isEmailValid && isGuestsValid;
 
   const onSubmit = async () => {
+    if (loading) return;
+
     setTouchedSubmit(true);
-    if (!isFormValid || loading) return;
+
+    if (!isFormComplete || !isEmailValid || !isGuestsValid) {
+      Alert.alert("Invalid Form", "  fill all fields correctly.");
+      return;
+    }
 
     setLoading(true);
 
-    const { error } = await supabase
-      .from("event_registrations")
-      .insert({
-        event_id: eventId,
-        email: email.trim(),
-        phone_num: phone.trim(),
-        guest_count: Number(guests),
-      });
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+
+    if (!user) {
+      setLoading(false);
+      Alert.alert("Not logged in", "Please login first.");
+      return;
+    }
+
+    const { error } = await supabase.from("event_registrations").insert({
+      user_id: user.id,        // 🔥 WAJIB
+      event_id: eventId,
+      email: email.trim(),
+      phone_num: phone.trim(),
+      guest_count: Number(guests),
+    });
 
     setLoading(false);
 
     if (error) {
-      console.error("REGISTER ERROR:", error);
       Alert.alert("Register failed", error.message);
       return;
     }
-    
-    const user = (await supabase.auth.getUser()).data.user;
 
-      await supabase.from("notifications").insert({
-        user_id: user.id,
-        type: "success",
-        title: "Event Registration Confirmed",
-        subtitle: "Your registration is confirmed",
-        body: "You have successfully registered for this event.",
-        related_id: eventId,
-        related_type: "event",
-      });
+    await supabase.from("notifications").insert({
+      user_id: user.id,
+      type: "success",
+      title: "Event Registration Confirmed",
+      subtitle: "Your registration is confirmed",
+      body: "You have successfully registered for this event.",
+      related_id: eventId,
+      related_type: "event",
+    });
+
     router.replace(`/(app)/event/${eventId}/success`);
   };
+
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -156,11 +169,10 @@ export default function EventRegisterScreen() {
           <TouchableOpacity
             style={[
               styles.primaryBtn,
-              (!isFormValid || loading) && styles.primaryBtnDisabled,
+              loading && styles.primaryBtnDisabled,
             ]}
             onPress={onSubmit}
             activeOpacity={0.9}
-            disabled={!isFormValid || loading}
           >
             <Text style={styles.primaryText}>
               {loading ? "Submitting..." : "Register"}
