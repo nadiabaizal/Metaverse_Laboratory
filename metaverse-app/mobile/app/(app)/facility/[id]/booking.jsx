@@ -82,6 +82,17 @@ export default function ToolBookingStep1() {
       return;
     }
 
+    const user = (await supabase.auth.getUser()).data.user;
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        type: "success",
+        title: "Tool Booking Approved",
+        subtitle: "Tool booking approved",
+        body: "Your booking request has been successfully submitted.",
+        related_id: data.id,
+        related_type: "facility",
+      });
+
     // ✅ LANGSUNG DAPAT booking_id
     router.push({
       pathname: "/(app)/facility/[id]/upload",

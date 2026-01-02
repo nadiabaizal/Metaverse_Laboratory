@@ -60,7 +60,18 @@ export default function EventRegisterScreen() {
       Alert.alert("Register failed", error.message);
       return;
     }
+    
+    const user = (await supabase.auth.getUser()).data.user;
 
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        type: "success",
+        title: "Event Registration Confirmed",
+        subtitle: "Your registration is confirmed",
+        body: "You have successfully registered for this event.",
+        related_id: eventId,
+        related_type: "event",
+      });
     router.replace(`/(app)/event/${eventId}/success`);
   };
 

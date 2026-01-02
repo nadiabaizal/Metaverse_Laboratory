@@ -13,67 +13,9 @@ import { useRouter } from "expo-router";
 
 import { colors } from "../../../src/theme/colors";
 import { spacing } from "../../../src/theme/spacing";
+import { useEffect, useState } from "react";
+import { supabase } from "../../../src/lib/supabase";
 
-/**
- * UI-only (dummy) notifications.
- * Nanti kalau sudah ada API, cukup ganti sumber data ini.
- */
-const NOTIFICATIONS = [
-  {
-    id: "n1",
-    dateLabel: "December 25, 2025",
-    type: "success",
-    title: "Event Registration Confirmed",
-    subtitle: "Your registration is confirmed",
-    body: "You have successfully registered for Building\nVirtual Worlds with Unity & VR.",
-    time: "09:00 AM",
-  },
-  {
-    id: "n2",
-    dateLabel: "December 25, 2025",
-    type: "reminder",
-    title: "Tool Return Reminder",
-    subtitle: "Return reminder",
-    body: "Please return the Motion Capture Suit by May\n19, 2025.",
-    time: "09:30 AM",
-  },
-  {
-    id: "n3",
-    dateLabel: "December 23, 2025",
-    type: "reminder",
-    title: "Event Reminder",
-    subtitle: "Upcoming event tomorrow",
-    body: "Don’t forget to attend Metaverse 101 : The\nFuture of Digital Interaction.",
-    time: "04:20 PM",
-  },
-  {
-    id: "n4",
-    dateLabel: "December 23, 2025",
-    type: "success",
-    title: "Tool Booking Approved",
-    subtitle: "Tool booking approved",
-    body: "Your booking request for Oculus Quest 2 has\nbeen approved.",
-    time: "10:00 AM",
-  },
-  {
-    id: "n5",
-    dateLabel: "December 23, 2025",
-    type: "reminder",
-    title: "New Event Available",
-    subtitle: "New event published",
-    body: "Check out our latest event: Career &\nResearch Pathways in Metaverse.",
-    time: "11:00 AM",
-  },
-  {
-    id: "n6",
-    dateLabel: "November 20, 2022",
-    type: "reminder",
-    title: "Welcome to Metaverse Laboratory",
-    subtitle: "Getting started",
-    body: "Explore facilities, events, and projects\nfrom the Home tab.",
-    time: "09:15 AM",
-  },
-];
 
 function getIcon(type) {
   if (type === "success") return { name: "checkmark" };
@@ -105,21 +47,55 @@ function NotificationItem({ item, onPress }) {
 
 export default function NotificationScreen() {
   const router = useRouter();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setNotifications(data);
+    }
+    setLoading(false);
+  };
 
   const grouped = useMemo(() => {
-    /** @type {Record<string, typeof NOTIFICATIONS>} */
     const map = {};
-    for (const n of NOTIFICATIONS) {
-      if (!map[n.dateLabel]) map[n.dateLabel] = [];
-      map[n.dateLabel].push(n);
-    }
-    // Keep original order of date appearance
-    const order = [];
-    for (const n of NOTIFICATIONS) {
-      if (!order.includes(n.dateLabel)) order.push(n.dateLabel);
-    }
-    return order.map((k) => ({ dateLabel: k, items: map[k] }));
-  }, []);
+
+    notifications.forEach((n) => {
+      const dateLabel = new Date(n.created_at).toLocaleDateString("en-US", {
+        month: "long",
+        day: "2-digit",
+        year: "numeric",
+      });
+
+      if (!map[dateLabel]) map[dateLabel] = [];
+
+      map[dateLabel].push({
+        ...n,
+        time: new Date(n.created_at).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
+    });
+
+    return Object.keys(map).map((k) => ({
+      dateLabel: k,
+      items: map[k],
+    }));
+  }, [notifications]);
 
   return (
     <SafeAreaView style={styles.safe}>
