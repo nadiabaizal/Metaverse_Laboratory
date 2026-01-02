@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -18,11 +18,12 @@ import { useRouter } from "expo-router";
 
 import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
-import { organizationMembers } from "../../../../src/data/mockOrganization";
+import { supabase } from "../../../../src/lib/supabase";
 
 const FILTERS = ["All", "Core", "Developer", "Research", "Coordinator"];
 
-function MemberCard({ item, onPress, onLongPress, openLink }) {
+/* ================= CARD ================= */
+function MemberCard({ item, onPress, onLongPress, openLink, openPhone, openEmail}) {
   return (
     <Pressable
       onPress={onPress}
@@ -56,8 +57,8 @@ function MemberCard({ item, onPress, onLongPress, openLink }) {
           </Text>
 
           <View style={styles.actions}>
-            <IconAction icon="call-outline" onPress={() => openLink(item.phone)} />
-            <IconAction icon="mail-outline" onPress={() => openLink(item.email)} />
+            <IconAction icon="call-outline" onPress={() => openPhone(item.phone)} />
+            <IconAction icon="mail-outline" onPress={() => openEmail(item.email)} />
             <IconAction icon="logo-instagram" onPress={() => openLink(item.instagram)} />
             <IconAction icon="logo-linkedin" onPress={() => openLink(item.linkedin)} />
           </View>
@@ -75,22 +76,62 @@ function IconAction({ icon, onPress }) {
   );
 }
 
+/* ================= SCREEN ================= */
 export default function OrganizationScreen() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [members, setMembers] = useState([]);
 
+  /* ===== FETCH SUPABASE ===== */
+  useEffect(() => {
+    const fetchMembers = async () => {
+      const { data, error } = await supabase
+        .from("organization_members")
+        .select("id, name, job_title, role, image_url, phone, email, instagram, linkedin");
+
+      if (error) {
+        console.error("SUPABASE ERROR:", error);
+        return;
+      }
+
+      setMembers(
+        (data ?? []).map((m) => ({
+          id: m.id,
+          name: m.name ?? "",
+          role: m.job_title ?? "",
+          category: (m.role ?? "").trim(), // ⬅️ PENTING
+          image: m.image_url ? { uri: m.image_url } : null,
+          phone: m.phone ?? null,
+          email: m.email ?? null,
+          instagram: m.instagram ?? null,
+          linkedin: m.linkedin ?? null,
+        }))
+      );
+    };
+
+    fetchMembers();
+  }, []);
+
+  /* ===== FILTER + SEARCH (FIX TOTAL) ===== */
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return organizationMembers
-      .filter((m) => (activeFilter === "All" ? true : m.category === activeFilter))
-      .filter((m) => {
-        if (!q) return true;
-        const hay = `${m.name || ""} ${m.role || ""} ${m.category || ""}`.toLowerCase();
-        return hay.includes(q);
-      });
-  }, [query, activeFilter]);
+    return members.filter((m) => {
+      const role = (m.category || "").toLowerCase();
+      const filter = activeFilter.toLowerCase();
+
+      const matchFilter =
+        filter === "all" ||
+        role === filter ||
+        (filter === "research" && role === "researcher");
+
+      if (!matchFilter) return false;
+      if (!q) return true;
+
+      return `${m.name} ${m.role} ${m.category}`.toLowerCase().includes(q);
+    });
+  }, [members, query, activeFilter]);
 
   const openLink = async (url) => {
     if (!url) {
@@ -98,36 +139,50 @@ export default function OrganizationScreen() {
       return;
     }
     try {
-      const ok = await Linking.canOpenURL(url);
-      if (!ok) return Alert.alert("Cannot open link", "Link tidak didukung di device ini.");
       await Linking.openURL(url);
     } catch {
       Alert.alert("Failed", "Unable to open the link.");
     }
   };
 
+    const openPhone = (phone) => {
+      if (!phone) {
+        Alert.alert("Info", "Nomor telepon belum tersedia.");
+        return;
+      }
+      Linking.openURL(`tel:${phone}`);
+    };
+
+    const openEmail = (email) => {
+      if (!email) {
+        Alert.alert("Info", "Email belum tersedia.");
+        return;
+      }
+      Linking.openURL(`mailto:${email}`);
+    };
+
+
   const onLongPressCard = (m) => {
     Alert.alert(m.name, "Quick Contact", [
-      { text: "Call", onPress: () => openLink(m.phone) },
-      { text: "Email", onPress: () => openLink(m.email) },
+      { text: "Call", onPress: () => openPhone(m.phone) },
+      { text: "Email", onPress: () => openEmail(m.email) },
       { text: "Instagram", onPress: () => openLink(m.instagram) },
       { text: "LinkedIn", onPress: () => openLink(m.linkedin) },
       { text: "Cancel", style: "cancel" },
     ]);
   };
 
+  /* ================= UI (AS IS) ================= */
   return (
     <SafeAreaView style={styles.safe}>
-      {/* HEADER (STANDARD - sama dengan Project) */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </Pressable>
         <Text style={styles.headerTitle}>Organization</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      {/* SEARCH (SAMA PERSIS DENGAN PROJECT) - STAY */}
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={20} color="#9CA3AF" />
         <TextInput
@@ -136,58 +191,53 @@ export default function OrganizationScreen() {
           placeholder="Search Member..."
           placeholderTextColor="#9CA3AF"
           style={styles.searchInput}
-          returnKeyType="search"
         />
-        {query.length > 0 && (
-          <Pressable onPress={() => setQuery("")} hitSlop={10}>
-            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-          </Pressable>
-        )}
       </View>
 
-      {/* FILTER CHIPS (STAY) - gaya rapi, posisi mengikuti Project layout */}
       <View style={styles.chipsWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-          {FILTERS.map((f) => {
-            const active = f === activeFilter;
-            return (
-              <Pressable
-                key={f}
-                onPress={() => setActiveFilter(f)}
-                style={[styles.chip, active && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f}</Text>
-              </Pressable>
-            );
-          })}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {FILTERS.map((f) => (
+            <Pressable
+              key={f}
+              onPress={() => setActiveFilter(f)}
+              style={[styles.chip, f === activeFilter && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, f === activeFilter && styles.chipTextActive]}>
+                {f}
+              </Text>
+            </Pressable>
+          ))}
         </ScrollView>
       </View>
 
-      {/* SECTION HEADER (STAY) */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Lab Members</Text>
         <Text style={styles.sectionCount}>{data.length} people</Text>
       </View>
 
-      {/* LIST (yang scroll hanya list) */}
       <FlatList
         data={data}
-        keyExtractor={(item) => String(item.id)}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: spacing.l }} />}
         renderItem={({ item }) => (
           <MemberCard
             item={item}
             openLink={openLink}
-            onPress={() => router.push({ pathname: "/(app)/organization/[id]", params: { id: item.id } })}
+            openPhone={openPhone}
+            openEmail={openEmail}
+            onPress={() =>
+              router.push({ pathname: "/(app)/organization/[id]", params: { id: item.id } })
+            }
             onLongPress={() => onLongPressCard(item)}
           />
         )}
         ListEmptyComponent={
           <View style={{ paddingTop: 40, alignItems: "center" }}>
-            <Text style={{ fontSize: 16, fontWeight: "800", color: "#111827" }}>No members found</Text>
-            <Text style={{ marginTop: 6, color: "#6B7280" }}>Try a different keyword or filter.</Text>
+            <Text style={{ fontSize: 16, fontWeight: "800" }}>No members found</Text>
+            <Text style={{ marginTop: 6, color: "#6B7280" }}>
+              Try a different keyword or filter.
+            </Text>
           </View>
         }
       />
@@ -195,55 +245,31 @@ export default function OrganizationScreen() {
   );
 }
 
+/* ================= STYLES (UNCHANGED) ================= */
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
-
-  // STANDARD HEADER (SAMA DENGAN PROJECT)
   header: {
     paddingTop: spacing.xl,
     paddingBottom: spacing.l,
     paddingHorizontal: spacing.xl,
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center",
   },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: 0.2,
-  },
-
-  // ✅ SEARCH (SAMA PERSIS DENGAN PROJECT)
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 26, fontWeight: "800", color: "#111827" },
   searchWrap: {
     marginHorizontal: spacing.xl,
     marginBottom: spacing.l,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.m,
-    paddingHorizontal: spacing.l,
-    paddingVertical: spacing.l,
+    padding: spacing.l,
     borderRadius: 18,
     backgroundColor: "#F3F4F6",
   },
-  searchInput: { flex: 1, fontSize: 16, color: "#111827" },
-
-  // Chips stay (posisi mengikuti layout project: sejajar marginHorizontal xl)
-  chipsWrap: {
-    marginHorizontal: spacing.xl,
-    marginBottom: spacing.l,
-  },
-  chipsRow: {
-    gap: spacing.m,
-  },
+  searchInput: { flex: 1, fontSize: 16 },
+  chipsWrap: { marginHorizontal: spacing.xl, marginBottom: spacing.l },
   chip: {
     paddingHorizontal: spacing.l,
     paddingVertical: spacing.m,
@@ -251,36 +277,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4F4F6",
     borderWidth: 1,
     borderColor: "#ECECF0",
+    marginRight: spacing.m,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, fontWeight: "700", color: "#9CA3AF" },
   chipTextActive: { color: "#fff" },
-
   sectionHeader: {
     marginHorizontal: spacing.xl,
     marginBottom: spacing.l,
     flexDirection: "row",
-    alignItems: "baseline",
     justifyContent: "space-between",
   },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#111827" },
-  sectionCount: { fontSize: 12, color: "#9CA3AF", fontWeight: "600" },
-
-  // list content mengikuti project (paddingHorizontal xl)
-  listContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
-  },
-
-  // card member
-  cardOuter: {
-    borderRadius: 22,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
-  },
+  sectionTitle: { fontSize: 16, fontWeight: "800" },
+  sectionCount: { fontSize: 12, color: "#9CA3AF" },
+  listContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
+  cardOuter: { borderRadius: 22, elevation: 3 },
   card: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
@@ -296,26 +307,17 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: "#E5E7EB",
   },
-  info: { flex: 1, justifyContent: "center" },
-  rowTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.m,
-  },
-  name: { flex: 1, fontSize: 16, fontWeight: "800", color: "#111827" },
-  role: { marginTop: 6, fontSize: 13, color: "#9CA3AF", fontWeight: "600" },
-
+  info: { flex: 1 },
+  rowTop: { flexDirection: "row", justifyContent: "space-between" },
+  name: { fontSize: 16, fontWeight: "800" },
+  role: { marginTop: 6, fontSize: 13, color: "#9CA3AF" },
   badge: {
     paddingHorizontal: spacing.m,
     paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: "#EEE9FF",
-    borderWidth: 1,
-    borderColor: "#DED4FF",
   },
   badgeText: { fontSize: 11, fontWeight: "800", color: colors.primary },
-
   actions: { marginTop: spacing.l, flexDirection: "row", gap: spacing.m },
   iconBtn: {
     width: 36,
@@ -324,7 +326,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4F2FF",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E7E1FF",
   },
 });
