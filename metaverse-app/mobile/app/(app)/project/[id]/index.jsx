@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,16 +9,18 @@ import {
   Image,
   Dimensions,
   Linking,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
-import { getProjectById } from "../../../../src/data/mockProjects";
+import { supabase } from "../../../../src/lib/supabase";
 
 const { width } = Dimensions.get("window");
 
+/* ===================== DOTS ===================== */
 function Dots({ count, active }) {
   return (
     <View style={styles.dots}>
@@ -29,113 +31,159 @@ function Dots({ count, active }) {
   );
 }
 
+/* ===================== SCREEN ===================== */
 export default function ProjectDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const project = useMemo(() => getProjectById(String(id)), [id]);
-  const [activeDot] = useState(1);
 
-  if (!project) {
+  const [project, setProject] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  /* ===================== FETCH DETAIL ===================== */
+  useEffect(() => {
+    const fetchProject = async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select(`
+          id,
+          title,
+          subtitle,
+          description,
+          external_url,
+          information,
+          project_images (
+            image_url,
+            order_index
+          )
+        `)
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        console.log("SUPABASE ERROR:", error);
+        setLoading(false);
+        return;
+      }
+
+      const images = (data.project_images || [])
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((img) => {
+          // ✅ JIKA SUDAH FULL URL
+          if (img.image_url.startsWith("http")) {
+            return img.image_url;
+          }
+
+          // ✅ JIKA MASIH PATH STORAGE
+          const { data: publicData } = supabase
+            .storage
+            .from("projects") // ⚠️ NAMA BUCKET
+            .getPublicUrl(img.image_url);
+
+          return publicData.publicUrl;
+        });
+
+      console.log("FINAL IMAGE URLS:", images); // 🔥 DEBUG WAJIB
+
+      setProject({
+        ...data,
+        images,
+        info: data.information,
+      });
+
+      setLoading(false);
+    };
+
+    if (id) fetchProject();
+  }, [id]);
+
+  /* ===================== LOADING / EMPTY ===================== */
+  if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-            <Ionicons name="chevron-back" size={26} color="#111827" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Project</Text>
-          <View style={{ width: 44 }} />
-        </View>
-        <View style={{ padding: spacing.xl }}>
-          <Text style={{ fontSize: 18, fontWeight: "800" }}>Project not found.</Text>
-        </View>
+        <Text style={{ padding: spacing.xl }}>Loading...</Text>
       </SafeAreaView>
     );
   }
 
-  const images = project.images || [];
-  const collage = images.slice(0, 4);
+  if (!project) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Text style={{ padding: spacing.xl }}>Project not found</Text>
+      </SafeAreaView>
+    );
+  }
 
+  /* ===================== HELPERS ===================== */
   const openExternal = async () => {
-    if (!project.externalUrl) return;
-    try {
-      const can = await Linking.canOpenURL(project.externalUrl);
-      if (can) await Linking.openURL(project.externalUrl);
-    } catch {}
+    if (!project.external_url) return;
+    const can = await Linking.canOpenURL(project.external_url);
+    if (can) await Linking.openURL(project.external_url);
   };
 
+  /* ===================== UI ===================== */
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-          <Ionicons name="chevron-back" size={26} color="#111827" />
+          <Ionicons name="chevron-back" size={26} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Project</Text>
         <View style={{ width: 44 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.collageWrap}>
-          {collage.map((uri, idx) => (
-            <Image
-              key={`${uri}-${idx}`}
-              source={{ uri }}
-              style={[
-                styles.collageImage,
-                idx === 0 && styles.topLeft,
-                idx === 1 && styles.topRight,
-                idx === 2 && styles.bottomLeft,
-                idx === 3 && styles.bottomRight,
-              ]}
-            />
-          ))}
-        </View>
+        {/* SLIDER */}
+        <FlatList
+          data={project.images}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item, index) => `${item}-${index}`}
+          onMomentumScrollEnd={(e) => {
+            const index = Math.round(
+              e.nativeEvent.contentOffset.x / width
+            );
+            setActiveIndex(index);
+          }}
+          renderItem={({ item }) => (
+            <View style={styles.sliderItem}>
+              <Image
+                source={{ uri: item }}  
+                style={styles.sliderImage} 
+              />
+            </View>
+          )}
+        />
 
-        <Dots count={3} active={activeDot} />
+        <Dots count={project.images.length} active={activeIndex} />
 
+        {/* TITLE */}
         <View style={styles.titleBlock}>
           <Text style={styles.title}>{project.title}</Text>
           <Text style={styles.subtitle}>{project.subtitle}</Text>
-          {!!project.externalUrl && (
-            <TouchableOpacity activeOpacity={0.9} onPress={openExternal} style={styles.openPill}>
+
+          {!!project.external_url && (
+            <TouchableOpacity onPress={openExternal} style={styles.openPill}>
               <Ionicons name="open-outline" size={16} color={colors.primary} />
               <Text style={styles.openPillText}>Open in Spatial</Text>
             </TouchableOpacity>
           )}
         </View>
 
+        {/* DESCRIPTION */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIcon}>
-              <Ionicons name="document-text-outline" size={20} color="#111827" />
-            </View>
-            <Text style={styles.sectionTitle}>Description</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.body}>{project.description}</Text>
         </View>
 
+        {/* INFORMATION */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIcon}>
-              <Ionicons name="information-circle-outline" size={20} color="#111827" />
-            </View>
-            <Text style={styles.sectionTitle}>Information</Text>
-          </View>
-
+          <Text style={styles.sectionTitle}>Information</Text>
           <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Platform</Text>
-              <Text style={styles.infoValue}>{project.info?.platform || "-"}</Text>
-            </View>
-            <View style={styles.infoDivider} />
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue}>{project.info?.location || "-"}</Text>
-            </View>
-            <View style={styles.infoDivider} />
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Type</Text>
-              <Text style={styles.infoValue}>{project.info?.type || "-"}</Text>
-            </View>
+            <InfoRow label="Platform" value={project.info?.platform} />
+            <InfoRow label="Location" value={project.info?.location} />
+            <InfoRow label="Type" value={project.info?.type} />
           </View>
         </View>
 
@@ -145,15 +193,26 @@ export default function ProjectDetails() {
   );
 }
 
-const CARD_RADIUS = 26;
+/* ===================== INFO ROW ===================== */
+function InfoRow({ label, value }) {
+  return (
+    <>
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value || "-"}</Text>
+      </View>
+      <View style={styles.infoDivider} />
+    </>
+  );
+}
 
+/* ===================== STYLES ===================== */
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
 
   header: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.m,
-    paddingBottom: spacing.m,
+    paddingVertical: spacing.m,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -163,43 +222,31 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 22,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: "900",
-    color: "#111827",
   },
 
   content: {
-    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xxl,
   },
 
-  collageWrap: {
-    width: width - spacing.xl * 2,
-    height: 220,
-    borderRadius: CARD_RADIUS,
-    overflow: "hidden",
-    backgroundColor: "#E5E7EB",
-    flexDirection: "row",
-    flexWrap: "wrap",
+  sliderItem: {
+    width: width,
+    alignItems: "center",
   },
-  collageImage: {
-    width: "50%",
-    height: "50%",
+  sliderImage: {
+    width: width,
+    aspectRatio: 16 / 9,
+    resizeMode: "contain",
   },
-  topLeft: {},
-  topRight: {},
-  bottomLeft: {},
-  bottomRight: {},
 
   dots: {
     flexDirection: "row",
     justifyContent: "center",
     gap: 10,
-    marginTop: spacing.m,
-    marginBottom: spacing.l,
+    marginVertical: spacing.l,
   },
   dot: {
     width: 10,
@@ -212,15 +259,12 @@ const styles = StyleSheet.create({
   },
 
   titleBlock: {
-    alignItems: "flex-start",
-    marginTop: spacing.s,
+    paddingHorizontal: spacing.xl,
     marginBottom: spacing.xl,
   },
   title: {
     fontSize: 28,
     fontWeight: "900",
-    color: "#111827",
-    lineHeight: 34,
   },
   subtitle: {
     marginTop: spacing.s,
@@ -228,6 +272,7 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontWeight: "700",
   },
+
   openPill: {
     marginTop: spacing.l,
     flexDirection: "row",
@@ -246,27 +291,13 @@ const styles = StyleSheet.create({
 
   section: {
     marginTop: spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.l,
-    marginBottom: spacing.l,
-  },
-  sectionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F3F4F6",
+    paddingHorizontal: spacing.xl,
   },
   sectionTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "900",
-    color: "#111827",
+    marginBottom: spacing.m,
   },
-
   body: {
     fontSize: 15,
     lineHeight: 24,
@@ -275,28 +306,22 @@ const styles = StyleSheet.create({
 
   infoCard: {
     borderRadius: 22,
-    backgroundColor: "#FFFFFF",
     borderWidth: 2,
     borderColor: "#E5E7EB",
     padding: spacing.xl,
   },
   infoRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: spacing.l,
   },
   infoLabel: {
     fontSize: 14,
     fontWeight: "900",
-    color: "#111827",
   },
   infoValue: {
     fontSize: 14,
     fontWeight: "700",
     color: "#6B7280",
-    flex: 1,
-    textAlign: "right",
   },
   infoDivider: {
     height: 1,

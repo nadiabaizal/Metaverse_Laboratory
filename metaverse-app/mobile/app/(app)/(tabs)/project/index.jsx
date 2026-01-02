@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,13 +14,18 @@ import { useRouter } from "expo-router";
 
 import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
-import { mockProjects } from "../../../../src/data/mockProjects";
+import { supabase } from "../../../../src/lib/supabase";
+
+/* ===================== CARD COMPONENT ===================== */
 
 function FeaturedCard({ item, onPress }) {
   return (
     <Pressable onPress={onPress} style={styles.featuredWrap}>
       <View style={styles.featuredCard}>
-        <Image source={{ uri: item.images?.[0] }} style={styles.featuredImage} />
+        <Image
+          source={{ uri: item.cover_image }}
+          style={styles.featuredImage}
+        />
         <View style={styles.featuredBody}>
           <Text style={styles.featuredLabel}>{item.label}</Text>
           <Text style={styles.featuredTitle} numberOfLines={2}>
@@ -37,7 +42,7 @@ function FeaturedCard({ item, onPress }) {
 
 function CompactCard({ item, onPress }) {
   return (
-    <Pressable onPress={onPress} style={styles.compactWrap}>
+    <Pressable onPress={onPress}>
       <View style={styles.compactCard}>
         <View style={styles.compactLeft}>
           <Text style={styles.compactLabel}>{item.label}</Text>
@@ -48,31 +53,74 @@ function CompactCard({ item, onPress }) {
             {item.short}
           </Text>
         </View>
-        <Image source={{ uri: item.images?.[0] }} style={styles.compactThumb} />
+        <Image
+          source={{ uri: item.cover_image }}
+          style={styles.compactThumb}
+        />
       </View>
     </Pressable>
   );
 }
 
+/* ===================== SCREEN ===================== */
+
 export default function ProjectScreen() {
   const router = useRouter();
-  const [query, setQuery] = useState("");
 
+  const [query, setQuery] = useState("");
+  const [projects, setProjects] = useState([]);
+
+  /* ===================== FETCH SUPABASE ===================== */
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select(`
+          id,
+          title,
+          subtitle,
+          label,
+          short,
+          cover_image
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.log("SUPABASE ERROR:", error);
+        return;
+      }
+
+      const mapped = (data || []).map((p) => ({
+        ...p,
+        cover_image:
+          p.cover_image ||
+          "https://via.placeholder.com/600x400?text=No+Cover",
+      }));
+
+      setProjects(mapped);
+    };
+
+    fetchProjects();
+  }, []);
+
+  /* ===================== SEARCH FILTER ===================== */
   const data = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return mockProjects;
-    return mockProjects.filter((p) => {
+    if (!q) return projects;
+
+    return projects.filter((p) => {
       const hay = `${p.title} ${p.subtitle} ${p.label} ${p.short}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [query]);
+  }, [query, projects]);
 
   const featured = data[0];
   const rest = data.slice(1);
 
+  /* ===================== UI ===================== */
   return (
     <SafeAreaView style={styles.safe}>
-      {/* HEADER (STANDARD - SAMA DENGAN EVENT/ORGANIZATION) */}
+      {/* HEADER */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color="#111827" />
@@ -90,7 +138,6 @@ export default function ProjectScreen() {
           placeholder="Search Project..."
           placeholderTextColor="#9CA3AF"
           style={styles.searchInput}
-          returnKeyType="search"
         />
         {query.length > 0 && (
           <Pressable onPress={() => setQuery("")} hitSlop={10}>
@@ -106,7 +153,12 @@ export default function ProjectScreen() {
           featured ? (
             <FeaturedCard
               item={featured}
-              onPress={() => router.push({ pathname: "/project/[id]", params: { id: featured.id } })}
+              onPress={() =>
+                router.push({
+                  pathname: "/project/[id]",
+                  params: { id: featured.id },
+                })
+              }
             />
           ) : null
         }
@@ -115,7 +167,12 @@ export default function ProjectScreen() {
         renderItem={({ item }) => (
           <CompactCard
             item={item}
-            onPress={() => router.push({ pathname: "/project/[id]", params: { id: item.id } })}
+            onPress={() =>
+              router.push({
+                pathname: "/project/[id]",
+                params: { id: item.id },
+              })
+            }
           />
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.l }} />}
@@ -124,10 +181,11 @@ export default function ProjectScreen() {
   );
 }
 
+/* ===================== STYLES (TIDAK DIUBAH) ===================== */
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#FFFFFF" },
 
-  // STANDARD HEADER (SAMA DENGAN EVENT & ORGANIZATION)
   header: {
     paddingTop: spacing.xl,
     paddingBottom: spacing.l,
@@ -135,7 +193,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
   },
   backBtn: {
     width: 40,
@@ -148,7 +205,6 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "800",
     color: "#111827",
-    letterSpacing: 0.2,
   },
 
   searchWrap: {
@@ -173,22 +229,14 @@ const styles = StyleSheet.create({
   featuredCard: {
     borderRadius: 26,
     backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
     overflow: "hidden",
+    elevation: 4,
   },
   featuredImage: { width: "100%", height: 170 },
-  featuredBody: {
-    padding: spacing.xl,
-    paddingTop: spacing.l,
-  },
+  featuredBody: { padding: spacing.xl },
   featuredLabel: {
     color: colors.primary,
     fontWeight: "900",
-    letterSpacing: 1,
     fontSize: 13,
     marginBottom: spacing.s,
   },
@@ -196,23 +244,16 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
     color: "#111827",
-    marginBottom: spacing.s,
   },
   featuredDesc: {
     fontSize: 14,
     color: "#374151",
-    lineHeight: 20,
   },
 
   compactCard: {
     borderRadius: 24,
     backgroundColor: "#FFFFFF",
     padding: spacing.xl,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xl,
@@ -221,20 +262,16 @@ const styles = StyleSheet.create({
   compactLabel: {
     color: colors.primary,
     fontWeight: "900",
-    letterSpacing: 1,
     fontSize: 13,
-    marginBottom: spacing.s,
   },
   compactTitle: {
     fontSize: 18,
     fontWeight: "900",
     color: "#111827",
-    marginBottom: spacing.s,
   },
   compactDesc: {
     fontSize: 14,
     color: "#374151",
-    lineHeight: 20,
   },
   compactThumb: {
     width: 88,

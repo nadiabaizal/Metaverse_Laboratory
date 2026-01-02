@@ -1,6 +1,5 @@
 export const mockProjects = [
   {
-    id: "seat-in-exhibition-2025",
     label: "SPATIAL WORLD",
     title: "SEAT in Exhibition 2025",
     subtitle: "Aula Timur ITB Metaverse",
@@ -14,7 +13,7 @@ export const mockProjects = [
       "https://www.glasshouse.org.au/files/assets/glasshouse/v/1/gallery/exhibition-shots/take-a-seat/2025_take-a-seat_01.jpg",
       "https://www.airline-suppliers.com/wp-content/uploads/2025/03/Bucher-class-divider-2.jpg",
     ],
-    externalUrl:
+    external_:
       "https://www.spatial.io/s/Seat-In-Exhibition-2025-atAula-Timur-ITB-Metaverse-692703787a66fabaf2ad1a85?share=1032498670493367815",
     info: {
       platform: "Spatial.io",
@@ -23,7 +22,6 @@ export const mockProjects = [
     },
   },
   {
-    id: "virtual-campus-tour",
     label: "VIRTUAL EXPERIENCE",
     title: "Virtual Campus Tour",
     subtitle: "ITB Ganesha 3D Experience",
@@ -37,7 +35,7 @@ export const mockProjects = [
       "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=70",
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=70",
     ],
-    externalUrl: "https://example.com",
+    external_: "https://example.com",
     info: {
       platform: "WebGL",
       location: "ITB Ganesha",
@@ -45,7 +43,6 @@ export const mockProjects = [
     },
   },
   {
-    id: "historical-site-reconstruction",
     label: "DIGITAL HERITAGE",
     title: "Historical Site Reconstruction",
     subtitle: "Immersive VR Preservation",
@@ -59,7 +56,7 @@ export const mockProjects = [
       "https://images.unsplash.com/photo-1500534314209-a26db0f5d3b1?auto=format&fit=crop&w=1600&q=70",
       "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=70",
     ],
-    externalUrl: "https://example.com",
+    external_: "https://example.com",
     info: {
       platform: "VR",
       location: "Indonesia",
@@ -67,7 +64,6 @@ export const mockProjects = [
     },
   },
   {
-    id: "ai-driven-npc-interaction",
     label: "AI + XR",
     title: "AI Driven NPC Interaction",
     subtitle: "Conversational NPCs in XR",
@@ -81,7 +77,7 @@ export const mockProjects = [
       "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1600&q=70",
       "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1600&q=70",
     ],
-    externalUrl: "https://example.com",
+    external_: "https://example.com",
     info: {
       platform: "XR",
       location: "Metaverse Lab",
@@ -89,7 +85,3 @@ export const mockProjects = [
     },
   },
 ];
-
-export function getProjectById(id) {
-  return mockProjects.find((p) => p.id === id);
-}
