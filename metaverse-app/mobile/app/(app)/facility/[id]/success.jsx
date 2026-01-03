@@ -36,7 +36,7 @@ export default function ToolBookingSuccess() {
         <Image source={require("../../../../assets/images/rogaOK.png")} style={styles.mascot} resizeMode="contain" />
 
         <Text style={styles.successTitle}>Booking Successful!</Text>
-        <Pressable onPress={() => router.push({ pathname: "/(app)/profile/history" })} hitSlop={8}>
+        <Pressable onPress={() => router.push({ pathname: "/(app)/notification" })} hitSlop={8}>
           <Text style={styles.linkText}>Check Status</Text>
         </Pressable>
 

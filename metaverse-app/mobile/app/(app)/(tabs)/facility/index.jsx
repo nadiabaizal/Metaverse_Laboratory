@@ -62,7 +62,7 @@ export default function FacilityScreen() {
         images: [f.cover_image], 
         stock: f.stock,
         isAvailable: f.is_available,
-        facility_added_at: f.facility_added_at,
+        facility_added_date: f.facility_added_date,
       }));
 
       setFacilities(mapped);
@@ -94,7 +94,7 @@ export default function FacilityScreen() {
     }
 
     if (activeFilter === "latest") {
-      list = list.slice().sort(
+      list = [...list].sort(
         (a, b) =>
           new Date(b.facility_added_date) -
           new Date(a.facility_added_date)
@@ -102,7 +102,7 @@ export default function FacilityScreen() {
     }
 
     if (activeFilter === "oldest") {
-      list = list.slice().sort(
+      list = [...list].sort(
         (a, b) =>
           new Date(a.facility_added_date) -
           new Date(b.facility_added_date)
