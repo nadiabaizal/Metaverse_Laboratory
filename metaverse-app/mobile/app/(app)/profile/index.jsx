@@ -192,7 +192,11 @@ export default function ProfileScreen() {
           onPress={() => router.push("/(app)/profile/history")}
         />
 
-        <Row icon="help-circle-outline" label="Help" onPress={() => alert("Help (todo)")} />
+        <Row
+          icon="help-circle-outline"
+          label="Help"
+          onPress={() => router.push("/(app)/profile/help")}
+        />
 
         <Row
           icon="log-out-outline"
