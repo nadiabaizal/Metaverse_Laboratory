@@ -1,36 +1,49 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "MetaLab",
+    "slug": "metaverselaboratory",
+    "scheme": "metaverselaboratory",
     "version": "1.0.0",
     "orientation": "portrait",
-    // "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "metaverselaboratory",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/bg.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#e8e8e8"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.metaverse.lab",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.metaverse.lab",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/roga.png",
+        "backgroundColor": "#e8e8e8"
       },
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/roga.png"
     },
     "plugins": [
       "expo-router",
       "expo-font",
       "@react-native-community/datetimepicker",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f1633a55-84a6-48be-aed6-bb714c35eb7e"
+      }
+    }
   }
 }

@@ -108,14 +108,14 @@ export default function LoginScreen() {
           <View style={styles.line} />
         </View>
 
-        <View style={styles.socialRow}>
+        {/* <View style={styles.socialRow}>
           <SocialButton onPress={() => Alert.alert("TODO", "Google login belum diimplementasikan")}>
             <Ionicons name="logo-google" size={30} color={colors.white} />
           </SocialButton>
           <SocialButton onPress={() => Alert.alert("TODO", "Facebook login belum diimplementasikan")}>
             <Ionicons name="logo-facebook" size={30} color={colors.white} />
           </SocialButton>
-        </View>
+        </View> */}
 
         <View style={styles.bottomRow}>
           <Text style={styles.bottomText}>Don’t have an account yet? </Text>

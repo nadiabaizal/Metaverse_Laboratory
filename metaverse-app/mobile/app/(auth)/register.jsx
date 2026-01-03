@@ -36,7 +36,7 @@ export default function RegisterScreen() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
           options: {
-          emailRedirectTo: "https://samuelchris16.github.io/Redirecting-Metaverse-Lab-App-Dev/create-password.html",
+          emailRedirectTo: "metaverselaboratory://(auth)/create-password",
           }
       });
 

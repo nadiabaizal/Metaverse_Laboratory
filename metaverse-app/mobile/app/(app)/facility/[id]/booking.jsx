@@ -62,14 +62,25 @@ export default function ToolBookingStep1() {
       return;
     }
 
-    // 🔥 INSERT + AMBIL ID LANGSUNG
+    // 🔥 AMBIL USER LOGIN
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Please login first");
+      return;
+    }
+
+    // ✅ INSERT DENGAN user_id (INI KUNCINYA)
     const { data, error } = await supabase
       .from("facility_bookings")
       .insert({
         facility_id: id,
+        user_id: user.id,          // ✅ WAJIB
         name,
         email,
-        student_number: studentNo, // ⬅️ SESUAI NAMA KOLOM
+        student_number: studentNo,
         whatsapp,
         campus,
       })
@@ -82,18 +93,18 @@ export default function ToolBookingStep1() {
       return;
     }
 
-    const user = (await supabase.auth.getUser()).data.user;
-      await supabase.from("notifications").insert({
-        user_id: user.id,
-        type: "success",
-        title: "Tool Booking Approved",
-        subtitle: "Tool booking approved",
-        body: "Your booking request has been successfully submitted.",
-        related_id: data.id,
-        related_type: "facility",
-      });
+    // 🔔 NOTIFICATION (sudah benar)
+    await supabase.from("notifications").insert({
+      user_id: user.id,
+      type: "success",
+      title: "Tool Booking Submitted",
+      subtitle: "Tool booking request sent",
+      body: "Your booking request has been successfully submitted.",
+      related_id: data.id,
+      related_type: "facility",
+    });
 
-    // ✅ LANGSUNG DAPAT booking_id
+    // ➡️ NEXT STEP
     router.push({
       pathname: "/(app)/facility/[id]/upload",
       params: {

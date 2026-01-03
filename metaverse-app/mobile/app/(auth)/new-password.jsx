@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useForm } from "react-hook-form";
@@ -17,6 +17,7 @@ import { supabase } from "../../src/lib/supabase";
 export default function NewPasswordScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   const {
     setValue,
@@ -31,33 +32,75 @@ export default function NewPasswordScreen() {
     },
   });
 
-  const onSubmit = async ({ password }) => {
+  /**
+   * 🔑 TUNGGU SESSION DARI DEEP LINK
+   */
+  useEffect(() => {
+    let mounted = true;
+
+    const checkSession = async () => {
+      // kasih waktu Supabase memproses recovery token
+      await new Promise((r) => setTimeout(r, 600));
+
+      const { data } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (!data.session) {
+        Alert.alert(
+          "Invalid link",
+          "Link reset password tidak valid atau sudah kadaluarsa.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace("/(auth)/login"),
+            },
+          ]
+        );
+      } else {
+        setCheckingSession(false);
+      }
+    };
+
+    checkSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onSubmit = async (values) => {
     setLoading(true);
-    try {
-      // 🔐 update password user (session dari email reset link)
-      const { error } = await supabase.auth.updateUser({
-        password,
-      });
 
-      if (error) throw error;
+    const { password, confirm } = values;
 
-      Alert.alert(
-        "Sukses",
-        "Password berhasil diubah. Silakan login kembali.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.replace("/(auth)/login"),
-          },
-        ]
-      );
-    } catch (e) {
-      console.error("NEW PASSWORD ERROR:", e);
-      Alert.alert("Gagal", e.message || "Gagal mengubah password");
-    } finally {
+    if (password !== confirm) {
+      Alert.alert("Error", "Password tidak sama");
       setLoading(false);
+      return;
     }
+
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      Alert.alert("Error", error.message);
+      return;
+    }
+
+    Alert.alert("Success", "Password berhasil diubah", [
+      {
+        text: "OK",
+        onPress: () => router.replace("/(auth)/login"),
+      },
+    ]);
   };
+
+  // ⛔️ jangan render UI sebelum session valid
+  if (checkingSession) return null;
 
   return (
     <AppBackground>

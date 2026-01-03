@@ -69,12 +69,10 @@ export default function ProjectDetails() {
       const images = (data.project_images || [])
         .sort((a, b) => a.order_index - b.order_index)
         .map((img) => {
-          // ✅ JIKA SUDAH FULL URL
           if (img.image_url.startsWith("http")) {
             return img.image_url;
           }
 
-          // ✅ JIKA MASIH PATH STORAGE
           const { data: publicData } = supabase
             .storage
             .from("projects") // ⚠️ NAMA BUCKET
@@ -82,8 +80,6 @@ export default function ProjectDetails() {
 
           return publicData.publicUrl;
         });
-
-      console.log("FINAL IMAGE URLS:", images); // 🔥 DEBUG WAJIB
 
       setProject({
         ...data,
@@ -95,9 +91,9 @@ export default function ProjectDetails() {
     };
 
     if (id) fetchProject();
+
   }, [id]);
 
-  /* ===================== LOADING / EMPTY ===================== */
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>

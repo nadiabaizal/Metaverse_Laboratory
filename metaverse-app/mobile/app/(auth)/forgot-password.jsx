@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Alert } from "react-native";
 import { Link } from "expo-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import * as Linking from "expo-linking";
 
 import AppBackground from "../../src/components/AppBackground";
 import TextField from "../../src/components/TextField";
@@ -32,8 +33,10 @@ export default function ForgotPasswordScreen() {
   const onSubmit = async ({ email }) => {
     setLoading(true);
     try {
+      const redirectTo = Linking.createURL("/(auth)/new-password");
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://samuelchris16.github.io/Redirecting-Metaverse-Lab-App-Dev/create-password.html",
+        redirectTo,
       });
 
       if (error) throw error;
