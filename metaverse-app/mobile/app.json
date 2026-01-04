@@ -10,11 +10,13 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+
     "splash": {
-      "image": "metaverse-app/mobile/assets/images/bg.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#e8e8e8"
+      "backgroundColor": "#0B1020"
     },
+
     "ios": {
       "bundleIdentifier": "com.metaverse.lab",
       "supportsTablet": true,
@@ -22,23 +24,27 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
+
     "android": {
       "package": "com.metaverse.lab",
       "adaptiveIcon": {
-        "foregroundImage": "metaverse-app/mobile/assets/images/roga.png",
-        "backgroundColor": "#e8e8e8"
+        "foregroundImage": "./assets/roga.png",
+        "backgroundColor": "#0B1020"
       },
       "edgeToEdgeEnabled": true
     },
+
     "web": {
       "favicon": "metaverse-app/mobile/assets/images/roga.png"
     },
+
     "plugins": [
       "expo-router",
       "expo-font",
       "@react-native-community/datetimepicker",
       "expo-web-browser"
     ],
+
     "extra": {
       "router": {},
       "eas": {
