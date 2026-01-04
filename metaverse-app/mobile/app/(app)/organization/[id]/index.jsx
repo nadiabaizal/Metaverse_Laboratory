@@ -18,8 +18,8 @@ import { colors } from "../../../../src/theme/colors";
 import { spacing } from "../../../../src/theme/spacing";
 
 const TABS = [
-  { key: "about", label: "Deskripsi" },
-  { key: "contact", label: "Kontak" },
+  { key: "about", label: "Description" },
+  { key: "contact", label: "Contact" },
 ];
 
 export default function OrganizationDetailScreen() {
