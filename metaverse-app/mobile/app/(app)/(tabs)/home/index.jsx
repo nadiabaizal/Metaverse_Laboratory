@@ -51,6 +51,19 @@ export default function HomeScreen() {
   const [organization, setOrganization] = useState(null);
   const [projects, setProjects] = useState([]);
 
+  const getAvatarPublicUrl = (path) => {
+    if (!path) return null;
+
+    // kalau sudah URL, langsung pakai
+    if (path.startsWith("http")) return path;
+
+    const { data } = supabase.storage
+      .from("avatars") // 🔴 GANTI sesuai nama bucket kamu
+      .getPublicUrl(path);
+
+    return data?.publicUrl ?? null;
+  };
+
   /* ---------- LOAD USER ---------- */
   const loadMe = async () => {
     setLoadingMe(true);
@@ -64,7 +77,7 @@ export default function HomeScreen() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("name, nik, birth_date, address")
+        .select("name, nik, birth_date, address, avatar_url")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -77,7 +90,10 @@ export default function HomeScreen() {
       setMe({
         email: user.email,
         profileCompleted,
-        profile,
+        profile: {
+          name: profile?.name ?? "",
+          avatarUrl: profile?.avatar_url ?? null,
+        },
       });
     } catch (e) {
       console.log("loadMe error:", e.message);
@@ -139,6 +155,11 @@ export default function HomeScreen() {
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
 
+  const avatarUri = useMemo(() => {
+    if (!me?.profile?.avatarUrl) return null;
+    return getAvatarPublicUrl(me.profile.avatarUrl);
+  }, [me]);
+
   const profileStatus = useMemo(() => {
     if (loadingMe) return "Loading...";
     if (!me) return "Profile status";
@@ -154,9 +175,13 @@ export default function HomeScreen() {
         <View style={styles.topRow}>
           <Pressable style={styles.profileLeft} onPress={() => router.push("/(app)/profile")}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+              ) : (
+                <Text style={styles.avatarText}>{initials}</Text>
+              )}
             </View>
-            <View>
+            <View>  
               <Text style={styles.username}>{displayName}</Text>
               <Text style={styles.status}>{profileStatus}</Text>
             </View>
@@ -292,7 +317,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 120,
   },
-
   topRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -307,7 +331,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#DBEAFE",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  avatarImg: { width: '100%', height: '100%'},
   avatarText: { fontSize: 18, fontWeight: "900", color: "#2563EB" },
   username: { fontSize: 18, fontWeight: "800", color: "#0F172A" },
   status: { fontSize: 13, fontWeight: "600", color: "rgba(15,23,42,0.55)", marginTop: 2 },
