@@ -171,7 +171,7 @@ export default function OrganizationDetailScreen() {
 
         <View style={styles.bottomBar}>
           <Pressable style={styles.primaryBtn} onPress={() => openEmail(member.email)}>
-            <Text style={styles.primaryBtnText}>Hubungi Sekarang</Text>
+            <Text style={styles.primaryBtnText}>Contact Now</Text>
           </Pressable>
         </View>
       </View>
