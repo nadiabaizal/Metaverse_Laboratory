@@ -1,120 +1,131 @@
+import React, { useEffect, useRef, useState } from "react";
+import { View, StyleSheet, StatusBar } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
-import * as Linking from "expo-linking";
 import { supabase } from "../src/lib/supabase";
 import { colors } from "../src/theme/colors";
-import { setAuthToken } from "../src/lib/api";
 
-/**
- * 🔑 LINKING CONFIG (WAJIB UNTUK RESET PASSWORD)
- */
-const linking = {
-  prefixes: [
-    Linking.createURL("/"), // exp://192.xxx.xxx.xxx:8000
-    "sametaverse://",       // production nanti
-  ],
-  config: {
-    screens: {
-      "(auth)": {
-        screens: {
-          "login": "(auth)/login",
-          "forgot-password": "(auth)/forgot-password",
-          "new-password": "(auth)/new-password",
-          "create-password": "(auth)/create-password",
-          "data": "(auth)/data",
-        },
-      },
-      "(app)": "(app)",
-    },
-  },
-};
+// ✅ Splash overlay component (buat file ini di app/Splash.jsx)
+import Splash from "./Splash";
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const checkedRef = useRef(false); // ⛔ cegah looping redirect
 
-  /**
-   * 🔑 Sync auth token ke axios
-   */
+  // ✅ Splash overlay state
+  const [showSplash, setShowSplash] = useState(true);
+
+  // ✅ Sembunyikan splash setelah beberapa saat (atau ketika Splash selesai)
   useEffect(() => {
-    const init = async () => {
-      const { data } = await supabase.auth.getSession();
-      setAuthToken(data.session?.access_token || "");
-    };
-
-    init();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setAuthToken(session?.access_token || "");
-      }
-    );
-
-    return () => {
-      listener?.subscription?.unsubscribe();
-    };
+    const t = setTimeout(() => setShowSplash(false), 7000);
+    return () => clearTimeout(t);
   }, []);
 
-  /**
-   * 🔐 ROUTING GUARD (SUDAH DIBETULKAN)
-   * - IZINKAN new-password walaupun belum login
-   */
   useEffect(() => {
     const checkAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
+      if (checkedRef.current) return;
 
-      const inAuthGroup = segments[0] === "(auth)";
-      const route = segments[1];
+      const currentRoute = segments.join("/");
 
+      // ✅ route yang BOLEH TANPA SESSION
       const allowWithoutSession = [
-        "login",
-        "forgot-password",
-        "new-password",     // ✅ PENTING
-        "create-password",
+        "(auth)/login",
+        "(auth)/register",
+        "(auth)/verification",
+        "(auth)/callback",
+        "(auth)/create-password",
+        "(auth)/new-password",
+        "(auth)/data",
       ];
 
-      // ❌ belum login & bukan halaman auth
+      if (allowWithoutSession.includes(currentRoute)) {
+        checkedRef.current = true;
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const inAuthGroup = segments[0] === "(auth)";
+
+      // ❌ belum login → paksa ke login
       if (!session && !inAuthGroup) {
+        checkedRef.current = true;
         router.replace("/(auth)/login");
         return;
       }
 
-      // ❌ belum login tapi masuk auth → cek apakah diizinkan
-      if (!session && inAuthGroup) {
-        if (!allowWithoutSession.includes(route)) {
-          router.replace("/(auth)/login");
+      if (session) {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("password_set")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn("Profile fetch error:", error.message);
+          checkedRef.current = true;
+          return;
         }
-        return;
+
+        // ❗ WAJIB isi password dulu
+        if (profile?.password_set === false) {
+          checkedRef.current = true;
+          router.replace("/(auth)/create-password");
+          return;
+        }
+
+        // ✅ sudah login + onboarding selesai
+        if (profile?.password_set && inAuthGroup) {
+          checkedRef.current = true;
+          router.replace("/(app)/(tabs)/home");
+          return;
+        }
       }
 
-      // ✅ sudah login tapi masih di auth → lempar ke app
-      if (session && inAuthGroup) {
-        router.replace("/(app)/(tabs)/home");
-      }
+      checkedRef.current = true;
     };
 
     checkAuth();
-  }, [segments]);
+  }, [segments, router]);
 
   return (
-    <Stack
-      linking={linking}   // 🔥 INI KUNCINYA
-      screenOptions={{
-        headerTransparent: true,
-        headerTitleStyle: { color: colors.white, fontWeight: "700" },
-        headerTintColor: colors.white,
-        headerBackTitleVisible: false,
-      }}
-    >
-      <Stack.Screen name="(auth)/login" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/register" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/verification" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/forgot-password" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/create-password" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/new-password" options={{ title: "" }} />
-      <Stack.Screen name="(auth)/data" options={{ title: "" }} />
-      <Stack.Screen name="(app)" options={{ headerShown: false }} />
-    </Stack>
+    <View style={styles.root}>
+      {/* Status bar untuk splash overlay (gelap) */}
+      <StatusBar barStyle={showSplash ? "light-content" : "dark-content"} />
+
+      <Stack
+        screenOptions={{
+          headerTransparent: true,
+          headerTitleStyle: { color: colors.white, fontWeight: "700" },
+          headerTintColor: colors.white,
+          headerBackTitleVisible: false,
+        }}
+      >
+        {/* AUTH */}
+        <Stack.Screen name="(auth)/login" options={{ title: "" }} />
+        <Stack.Screen name="(auth)/register" options={{ title: "" }} />
+        <Stack.Screen name="(auth)/verification" options={{ title: "" }} />
+        <Stack.Screen name="(auth)/callback" options={{ title: "" }} />
+        <Stack.Screen name="(auth)/create-password" options={{ title: "" }} />
+        <Stack.Screen name="(auth)/new-password" options={{ title: "" }} />
+        <Stack.Screen name="(auth)/data" options={{ title: "" }} />
+
+        {/* APP */}
+        <Stack.Screen name="(app)" options={{ headerShown: false }} />
+      </Stack>
+
+      {/* ✅ Splash overlay animasi (tidak mengganggu navigasi) */}
+      {showSplash && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Splash onFinish={() => setShowSplash(false)} />
+        </View>
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#FFFFFF" },
+});
