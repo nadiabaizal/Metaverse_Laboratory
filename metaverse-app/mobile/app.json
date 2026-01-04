@@ -11,7 +11,7 @@
       "policy": "appVersion"
     },
     "splash": {
-      "image": "./assets/bg.png",
+      "image": "metaverse-app/mobile/assets/images/bg.png",
       "resizeMode": "contain",
       "backgroundColor": "#e8e8e8"
     },
@@ -25,13 +25,13 @@
     "android": {
       "package": "com.metaverse.lab",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/roga.png",
+        "foregroundImage": "metaverse-app/mobile/assets/images/roga.png",
         "backgroundColor": "#e8e8e8"
       },
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/roga.png"
+      "favicon": "metaverse-app/mobile/assets/images/roga.png"
     },
     "plugins": [
       "expo-router",
